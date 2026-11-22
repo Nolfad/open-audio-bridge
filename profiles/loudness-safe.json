@@ -1,0 +1,24 @@
+{
+  "name": "loudness-safe",
+  "description": "Tuxedo OS: +18 dB drive, mild linked compression, -4 dBFS sample ceiling with intersample margin.",
+  "drive_db": 18.0,
+  "threshold_db": -8.0,
+  "ratio": 1.2,
+  "attack_ms": 8.0,
+  "release_ms": 160.0,
+  "ceiling_db": -4.0,
+  "filters": [
+    {
+      "type": "bq_lowshelf",
+      "freq": 105,
+      "gain": 1.6,
+      "q": 0.72
+    },
+    {
+      "type": "bq_highshelf",
+      "freq": 6800,
+      "gain": 0.8,
+      "q": 0.72
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Instalar Open Audio Bridge
+Comment=Instalação na sua conta, com restauração do áudio anterior
+Exec=python3 -c "import sys,runpy,pathlib,urllib.parse; p=urllib.parse.unquote(urllib.parse.urlparse(sys.argv[1]).path) if sys.argv[1].startswith('file:') else sys.argv[1]; runpy.run_path(str(pathlib.Path(p).resolve().parent/'install.py'),run_name='__main__')" %k
+Icon=audio-volume-high
+Terminal=false
+Categories=AudioVideo;Audio;

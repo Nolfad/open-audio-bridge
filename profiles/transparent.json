@@ -1,0 +1,11 @@
+{
+  "name": "transparent",
+  "description": "Neutral stereo processing; no EQ and no added gain, only sample-peak protection.",
+  "drive_db": 0.0,
+  "threshold_db": 0.0,
+  "ratio": 1.0,
+  "attack_ms": 6.0,
+  "release_ms": 120.0,
+  "ceiling_db": -0.5,
+  "filters": []
+}

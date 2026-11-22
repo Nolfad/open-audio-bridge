@@ -1,0 +1,14 @@
+{
+  "name": "loudness",
+  "description": "Conservative loudness preset; not equivalent to a proprietary driver or APO.",
+  "drive_db": 3.0,
+  "threshold_db": -17.0,
+  "ratio": 1.8,
+  "attack_ms": 8.0,
+  "release_ms": 160.0,
+  "ceiling_db": -1.0,
+  "filters": [
+    {"type": "bq_lowshelf", "freq": 105, "gain": 1.6, "q": 0.72},
+    {"type": "bq_highshelf", "freq": 6800, "gain": 0.8, "q": 0.72}
+  ]
+}
