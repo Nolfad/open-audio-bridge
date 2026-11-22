@@ -2,7 +2,7 @@
 """Open Audio Bridge desktop lifecycle and PipeWire graph. No root required."""
 from pathlib import Path
 import argparse,base64,fcntl,json,math,os,shutil,signal,subprocess,sys,time,tempfile
-VERSION='0.2.2'
+VERSION='0.2.3'
 MAX_VOLUME=150
 ROOT=Path(__file__).resolve().parent
 HOME_DIR=Path.home()
@@ -56,24 +56,25 @@ def validate_percent(value):
  return value
 
 def inverse_percent(old,curve):
- # Equivalent levels may exceed the slider's 150% range (boost reaches 300%).
+ # Equivalent levels may exceed the slider's 150% range (boost reaches 170%).
  p=float(old)
  if not math.isfinite(p) or p<0:raise ValueError('Nível equivalente inválido.')
- return min(MAX_VOLUME,p/2 if curve=='boost' else p)
+ return min(MAX_VOLUME,(p/2 if p<=40 else p-20) if curve=='boost' else p)
 
 def equivalent_percent(value,curve):
  p=validate_percent(value)
- return 2*p if curve=='boost' else p
+ return (2*p if p<=20 else p+20) if curve=='boost' else p
 
 def migrate_volume_settings(settings):
- # 0.2.0/0.2.1 tapered boost above 40%. Preserve gain on upgrade, once.
+ # Preserve the prior gain once, capped at the new curve's reachable maximum.
  result=dict(settings)
- if result.get('volume_curve_version',1)<2:
+ revision=result.get('volume_curve_version',1)
+ if revision<3:
   p=validate_percent(result.get('volume',25))
   if result.get('curve','boost')=='boost':
-   old_equivalent=2*p if p<=40 else 80+(p-40)/3 if p<=100 else p
+   old_equivalent=2*p if revision==2 or p<=40 else 80+(p-40)/3 if p<=100 else p
    result['volume']=inverse_percent(old_equivalent,'boost')
-  result['volume_curve_version']=2
+  result['volume_curve_version']=3
  return result
 
 def make_graph(lib,curve='boost'):
@@ -198,7 +199,7 @@ def install(source=ROOT):
   if old.exists():shutil.rmtree(old)
   if APP.exists():APP.rename(old)
   stage.rename(APP);promoted=True
-  save(SETTINGS,dict(was,target=target,curve=was.get('curve','boost'),volume_curve_version=2,volume=was.get('volume',initial),mute=was.get('mute',physical['mute'] if physical else False),balance=was.get('balance',[v/largest for v in raw]),enabled=False))
+  save(SETTINGS,dict(was,target=target,curve=was.get('curve','boost'),volume_curve_version=3,volume=was.get('volume',initial),mute=was.get('mute',physical['mute'] if physical else False),balance=was.get('balance',[v/largest for v in raw]),enabled=False))
   executable=json.dumps(sys.executable);backend=json.dumps(str(APP/'bridge.py').replace('%','%%'))
   atomic(SERVICE,'[Unit]\nDescription=Open Audio Bridge\nAfter=pipewire.service pipewire-pulse.service wireplumber.service\nRequires=pipewire.service\n\n[Service]\nType=simple\nExecStart='+executable+' '+backend+' daemon\nExecStopPost='+executable+' '+backend+' recover\nRestart=on-failure\nRestartSec=2\nTimeoutStopSec=5\n\n[Install]\nWantedBy=default.target\n')
   atomic(DESKTOP,desktop_text());atomic(AUTOSTART,desktop_text(True))

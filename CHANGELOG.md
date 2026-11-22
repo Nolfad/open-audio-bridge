@@ -1,3 +1,9 @@
+# 0.2.3 — 22/11/2026
+
+- Curva corrigida conforme a intenção esclarecida: +20 pontos percentuais, não multiplicação por dois. 80% → antigos 100%; 100% → antigos 120%.
+- Entrada gradual do reforço entre 0% e 20%, preservando silêncio e continuidade.
+- Migração das duas curvas anteriores preserva o nível quando alcançável; níveis maiores são reduzidos ao novo máximo.
+
 # 0.2.2 — 22/11/2026
 
 - Corrigida a curva Reforçada: a equivalência de 2× continua até o topo (40% → 80%, 100% → 200%, 150% → 300%), antes da proteção final.

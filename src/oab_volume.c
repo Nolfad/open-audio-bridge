@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: MIT
- * Volume law only: boost maps every percentage to twice the original scale.
+ * Volume law only: boost adds 20 percentage points above 20%; ramps from silence below.
  * No compression here; the final guard limits peaks after this gain stage.
  * Capture volume controls are percentages (PipeWire scale=cubic).
  */
@@ -19,7 +19,7 @@ static void run(LADSPA_Handle h,unsigned long n){
  Volume *v=h;if(!v->p[IL]||!v->p[IR]||!v->p[OL]||!v->p[OR])return;
  float l=unit(v->p[VL]?*v->p[VL]:0),r=unit(v->p[VR]?*v->p[VR]:0);
  float m=fmaxf(l,r),mapped=m;
- if(v->p[CURVE]&&*v->p[CURVE]>=.5f)mapped=2*m;
+ if(v->p[CURVE]&&*v->p[CURVE]>=.5f)mapped=m<=.2f?2*m:m+.2f;
  float common=m>0?mapped/m:0;
  float target[2]={powf(l*common,3),powf(r*common,3)};
  for(unsigned long i=0;i<n;i++)for(int c=0;c<2;c++){

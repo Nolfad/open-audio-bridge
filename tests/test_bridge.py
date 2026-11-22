@@ -5,14 +5,14 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 import bridge
 class BackendTests(unittest.TestCase):
  def test_curve_inverse_preserves_start_level(self):
-  self.assertAlmostEqual(bridge.inverse_percent(80,'boost'),40)
-  self.assertAlmostEqual(bridge.inverse_percent(60,'boost'),30)
-  self.assertAlmostEqual(bridge.inverse_percent(100,'boost'),50)
+  self.assertAlmostEqual(bridge.inverse_percent(80,'boost'),60)
+  self.assertAlmostEqual(bridge.inverse_percent(60,'boost'),40)
+  self.assertAlmostEqual(bridge.inverse_percent(100,'boost'),80)
  def test_amplified_volume_round_trip(self):
   self.assertEqual(bridge.validate_percent(150),150)
-  self.assertEqual(bridge.inverse_percent(125,'boost'),62.5)
-  self.assertEqual(bridge.equivalent_percent(125,'boost'),250)
-  self.assertEqual(bridge.equivalent_percent(40,'boost'),80)
+  self.assertEqual(bridge.inverse_percent(125,'boost'),105)
+  self.assertEqual(bridge.equivalent_percent(125,'boost'),145)
+  self.assertEqual(bridge.equivalent_percent(40,'boost'),60)
  def test_full_range_round_trip_and_normal_ceiling(self):
   for p in [0,20,40,60,80,100,125,150]:
    self.assertEqual(bridge.inverse_percent(bridge.equivalent_percent(p,'boost'),'boost'),p)
@@ -28,6 +28,12 @@ class BackendTests(unittest.TestCase):
    self.assertEqual(bridge.migrate_volume_settings(migrated),migrated)
    self.assertEqual(original['volume'],old)
   self.assertEqual(bridge.migrate_volume_settings({'curve':'normal','volume':125})['volume'],125)
+ def test_migrate_doubled_curve_and_cap_unreachable_level(self):
+  for p,want in [(10,10),(31,42),(40,60),(80,140),(100,150),(150,150)]:
+   result=bridge.migrate_volume_settings({'volume_curve_version':2,'curve':'boost','volume':p})
+   self.assertEqual(result['volume'],want)
+   self.assertEqual(result['volume_curve_version'],3)
+   self.assertEqual(bridge.migrate_volume_settings(result),result)
  def test_snapshot_restores_existing_and_absent(self):
   with tempfile.TemporaryDirectory() as t:
    p=Path(t)/'present';q=Path(t)/'absent';p.write_bytes(b'original');p.chmod(0o600)
@@ -118,7 +124,7 @@ class DisconnectedUpgradeTests(unittest.TestCase):
    bridge.install(source)
    settings=bridge.read(bridge.SETTINGS)
    self.assertEqual(settings['target'],'alsa_output.missing')
-   self.assertEqual(settings['volume'],50)
-   self.assertEqual(settings['volume_curve_version'],2)
+   self.assertEqual(settings['volume'],80)
+   self.assertEqual(settings['volume_curve_version'],3)
    self.assertTrue(settings['mute']);self.assertEqual(settings['balance'],[1,.7])
    self.assertEqual((app/'bridge.py').read_text(),'new')
