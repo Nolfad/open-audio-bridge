@@ -1,3 +1,11 @@
+# 0.2.2 — 22/11/2026
+
+- Corrigida a curva Reforçada: a equivalência de 2× continua até o topo (40% → 80%, 100% → 200%, 150% → 300%), antes da proteção final.
+- Removida a redução progressiva do reforço acima de 40%; ganho continua aumentando entre 80% e 100%.
+- Atualização permitida com a saída salva temporariamente desconectada, mantendo o destino.
+- Atualizações preservam o nível de escuta anterior por conversão única da porcentagem.
+- Troca para a curva Padrão respeita seu alcance máximo; interface e documentação explicam a diferença.
+
 # 0.2.1 — 22/11/2026
 
 - Controle liberado até 150% no aplicativo e no KDE, sem retorno automático a 100%.

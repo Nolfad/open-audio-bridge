@@ -24,11 +24,17 @@ class VolumeTests(unittest.TestCase):
   left,_=self.render(x=x)
   self.assertLess(max(abs(a-b*.512) for a,b in zip(left[48000:],x[48000:])),1e-7)
  def test_zero_is_exact_silence(self):self.assertEqual(max(map(abs,self.render(0,0)[0])),0)
- def test_max_does_not_increase(self):self.assertAlmostEqual(self.render(1,1)[0][-1],.5,places=5)
+ def test_boost_continues_through_entire_range(self):
+  for percent in [20,40,50,60,80,100,125,150]:
+   with self.subTest(percent=percent):
+    self.assertAlmostEqual(self.render(percent/100,percent/100,x=.01)[0][-1],.01*(2*percent/100)**3,places=6)
+ def test_eighty_to_hundred_keeps_progression(self):
+  low=self.render(.8,.8,x=.01)[0][-1];high=self.render(1,1,x=.01)[0][-1]
+  self.assertAlmostEqual(high/low,(100/80)**3,places=5)
  def test_normal_curve(self):self.assertAlmostEqual(self.render(curve=0)[0][-1],.5*.4**3,places=5)
  def test_balance_ratio_preserved(self):
   l,r=self.render(.8,.4);self.assertAlmostEqual(l[-1]/r[-1],8,places=4)
  def test_invalid_control_mutes(self):self.assertEqual(max(map(abs,self.render(float('nan'),float('nan'))[0])),0)
- def test_150_amplifies_before_final_guard(self):self.assertAlmostEqual(self.render(1.5,1.5,x=.1)[0][-1],.3375,places=5)
- def test_above_150_clamped(self):self.assertAlmostEqual(self.render(2,2,x=.1)[0][-1],.3375,places=5)
+ def test_150_amplifies_before_final_guard(self):self.assertAlmostEqual(self.render(1.5,1.5,x=.1)[0][-1],2.7,places=5)
+ def test_above_150_clamped(self):self.assertAlmostEqual(self.render(2,2,x=.1)[0][-1],2.7,places=5)
 if __name__=='__main__':unittest.main()

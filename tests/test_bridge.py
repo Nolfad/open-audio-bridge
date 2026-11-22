@@ -7,12 +7,27 @@ class BackendTests(unittest.TestCase):
  def test_curve_inverse_preserves_start_level(self):
   self.assertAlmostEqual(bridge.inverse_percent(80,'boost'),40)
   self.assertAlmostEqual(bridge.inverse_percent(60,'boost'),30)
-  self.assertAlmostEqual(bridge.inverse_percent(100,'boost'),100)
+  self.assertAlmostEqual(bridge.inverse_percent(100,'boost'),50)
  def test_amplified_volume_round_trip(self):
   self.assertEqual(bridge.validate_percent(150),150)
-  self.assertEqual(bridge.inverse_percent(125,'boost'),125)
-  self.assertEqual(bridge.equivalent_percent(125,'boost'),125)
+  self.assertEqual(bridge.inverse_percent(125,'boost'),62.5)
+  self.assertEqual(bridge.equivalent_percent(125,'boost'),250)
   self.assertEqual(bridge.equivalent_percent(40,'boost'),80)
+ def test_full_range_round_trip_and_normal_ceiling(self):
+  for p in [0,20,40,60,80,100,125,150]:
+   self.assertEqual(bridge.inverse_percent(bridge.equivalent_percent(p,'boost'),'boost'),p)
+  self.assertEqual(bridge.inverse_percent(300,'normal'),150)
+  for p in [float('nan'),float('inf'),-1]:
+   with self.assertRaises(ValueError):bridge.inverse_percent(p,'boost')
+ def test_update_preserves_old_listening_level_once(self):
+  for old,equivalent in [(0,0),(40,80),(70,90),(100,100),(150,150)]:
+   original={'curve':'boost','volume':old,'mute':True,'target':'test'}
+   migrated=bridge.migrate_volume_settings(original)
+   self.assertAlmostEqual(bridge.equivalent_percent(migrated['volume'],'boost'),equivalent)
+   self.assertTrue(migrated['mute']);self.assertEqual(migrated['target'],'test')
+   self.assertEqual(bridge.migrate_volume_settings(migrated),migrated)
+   self.assertEqual(original['volume'],old)
+  self.assertEqual(bridge.migrate_volume_settings({'curve':'normal','volume':125})['volume'],125)
  def test_snapshot_restores_existing_and_absent(self):
   with tempfile.TemporaryDirectory() as t:
    p=Path(t)/'present';q=Path(t)/'absent';p.write_bytes(b'original');p.chmod(0o600)
@@ -84,3 +99,26 @@ class LifecycleTests(unittest.TestCase):
    stack.enter_context(mock.patch.object(bridge,'run',side_effect=fail))
    with self.assertRaises(bridge.BridgeError):bridge.disable()
    self.assertFalse(bridge.LEGACY.exists())
+
+class DisconnectedUpgradeTests(unittest.TestCase):
+ def test_update_without_hardware_preserves_target_and_converts_volume(self):
+  with tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:
+   root=Path(tmp);app=root/'app';app.mkdir();(app/'bridge.py').write_text('old')
+   source=root/'source';source.mkdir();(source/'bridge.py').write_text('new')
+   for name,path in {'APP':app,'STATE':root/'state','SETTINGS':root/'state/settings.json','BASELINE':root/'state/baseline.json','SERVICE':root/'svc','DESKTOP':root/'desktop','AUTOSTART':root/'autostart','LEGACY':root/'legacy'}.items():
+    stack.enter_context(mock.patch.object(bridge,name,path))
+   bridge.save(bridge.SETTINGS,{'enabled':False,'target':'alsa_output.missing','volume':100,'curve':'boost','mute':True,'balance':[1,.7]})
+   bridge.save(bridge.BASELINE,{'files':{},'default':'alsa_output.missing'})
+   stack.enter_context(mock.patch.object(bridge,'prerequisites'))
+   stack.enter_context(mock.patch.object(bridge,'physical_sinks',return_value=[]))
+   stack.enter_context(mock.patch.object(bridge,'sink_by_name',return_value=None))
+   stack.enter_context(mock.patch.object(bridge,'compile_plugins'))
+   stack.enter_context(mock.patch.object(bridge,'enable'))
+   stack.enter_context(mock.patch.object(bridge,'run',return_value=__import__('subprocess').CompletedProcess([],1,'','')))
+   bridge.install(source)
+   settings=bridge.read(bridge.SETTINGS)
+   self.assertEqual(settings['target'],'alsa_output.missing')
+   self.assertEqual(settings['volume'],50)
+   self.assertEqual(settings['volume_curve_version'],2)
+   self.assertTrue(settings['mute']);self.assertEqual(settings['balance'],[1,.7])
+   self.assertEqual((app/'bridge.py').read_text(),'new')

@@ -2,7 +2,7 @@
 """Open Audio Bridge desktop lifecycle and PipeWire graph. No root required."""
 from pathlib import Path
 import argparse,base64,fcntl,json,math,os,shutil,signal,subprocess,sys,time,tempfile
-VERSION='0.2.1'
+VERSION='0.2.2'
 MAX_VOLUME=150
 ROOT=Path(__file__).resolve().parent
 HOME_DIR=Path.home()
@@ -56,12 +56,25 @@ def validate_percent(value):
  return value
 
 def inverse_percent(old,curve):
- p=validate_percent(old)/100
- return 100*(p if curve=='normal' or p>1 else p/2 if p<=.8 else .4+3*(p-.8))
+ # Equivalent levels may exceed the slider's 150% range (boost reaches 300%).
+ p=float(old)
+ if not math.isfinite(p) or p<0:raise ValueError('Nível equivalente inválido.')
+ return min(MAX_VOLUME,p/2 if curve=='boost' else p)
 
 def equivalent_percent(value,curve):
- p=validate_percent(value)/100
- return 100*(p if curve=='normal' or p>1 else 2*p if p<=.4 else .8+(p-.4)/3)
+ p=validate_percent(value)
+ return 2*p if curve=='boost' else p
+
+def migrate_volume_settings(settings):
+ # 0.2.0/0.2.1 tapered boost above 40%. Preserve gain on upgrade, once.
+ result=dict(settings)
+ if result.get('volume_curve_version',1)<2:
+  p=validate_percent(result.get('volume',25))
+  if result.get('curve','boost')=='boost':
+   old_equivalent=2*p if p<=40 else 80+(p-40)/3 if p<=100 else p
+   result['volume']=inverse_percent(old_equivalent,'boost')
+  result['volume_curve_version']=2
+ return result
 
 def make_graph(lib,curve='boost'):
  import oab
@@ -151,8 +164,9 @@ def desktop_text(tray=False):
 
 def install(source=ROOT):
  prerequisites();available=physical_sinks()
- if not available:raise BridgeError('Conecte uma saída estéreo antes de instalar.')
  was=read(SETTINGS,{});updating=BASELINE.exists()
+ if not available and not (updating and was.get('target')):
+  raise BridgeError('Conecte uma saída estéreo antes de instalar.')
  if not updating:
   for p in [SERVICE,DESKTOP,AUTOSTART]:
    if p.exists():raise BridgeError(f'Já existe um arquivo não gerenciado: {p}')
@@ -173,18 +187,18 @@ def install(source=ROOT):
  prior_running=run(['systemctl','--user','is-active','open-audio-bridge'],check=False).returncode==0
  promoted=False
  try:
-  if updating:disable();was=read(SETTINGS,{})
+  if updating:disable();was=migrate_volume_settings(read(SETTINGS,{}))
   else:save(BASELINE,{'files':snapshot([SERVICE,DESKTOP,AUTOSTART,LEGACY]),'default':default_sink()})
   target=was.get('target') or next((x['name'] for x in available if x['name']==default_sink()),available[0]['name'])
-  if target not in [x['name'] for x in available]:target=available[0]['name']
-  physical=next(x for x in available if x['name']==target)
-  raw=[v['value'] for v in physical['volume'].values()];largest=max(raw) or 1
+  if not updating and target not in [x['name'] for x in available]:target=available[0]['name']
+  physical=next((x for x in available if x['name']==target),None)
+  raw=[v['value'] for v in physical['volume'].values()] if physical else [1,1];largest=max(raw) or 1
   # A fresh migration may have no legacy processor at all: start conservatively.
-  initial=min(25.,inverse_percent(percent_of(physical),'boost'))
+  initial=min(25.,inverse_percent(percent_of(physical),'boost')) if physical else 25.
   if old.exists():shutil.rmtree(old)
   if APP.exists():APP.rename(old)
   stage.rename(APP);promoted=True
-  save(SETTINGS,dict(was,target=target,curve=was.get('curve','boost'),volume=was.get('volume',initial),mute=was.get('mute',physical['mute']),balance=was.get('balance',[v/largest for v in raw]),enabled=False))
+  save(SETTINGS,dict(was,target=target,curve=was.get('curve','boost'),volume_curve_version=2,volume=was.get('volume',initial),mute=was.get('mute',physical['mute'] if physical else False),balance=was.get('balance',[v/largest for v in raw]),enabled=False))
   executable=json.dumps(sys.executable);backend=json.dumps(str(APP/'bridge.py').replace('%','%%'))
   atomic(SERVICE,'[Unit]\nDescription=Open Audio Bridge\nAfter=pipewire.service pipewire-pulse.service wireplumber.service\nRequires=pipewire.service\n\n[Service]\nType=simple\nExecStart='+executable+' '+backend+' daemon\nExecStopPost='+executable+' '+backend+' recover\nRestart=on-failure\nRestartSec=2\nTimeoutStopSec=5\n\n[Install]\nWantedBy=default.target\n')
   atomic(DESKTOP,desktop_text());atomic(AUTOSTART,desktop_text(True))
