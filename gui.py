@@ -6,7 +6,7 @@ from PyQt5 import QtCore,QtGui,QtNetwork,QtWidgets as W
 from bridge import MAX_VOLUME
 ROOT=Path(__file__).resolve().parent
 class Window(W.QMainWindow):
- def __init__(self,tray=False):
+ def __init__(self,tray=True):
   super().__init__();self.setWindowTitle('Open Audio Bridge');self.resize(560,450);self.busy=False;self.last={};self.queue=[];self.use_tray=tray
   icon=QtGui.QIcon.fromTheme('audio-volume-high')
   self.setWindowIcon(icon if not icon.isNull() else self.style().standardIcon(W.QStyle.SP_MediaVolume))
@@ -18,7 +18,7 @@ class Window(W.QMainWindow):
   self.curve=W.QComboBox();self.curve.addItem('Reforçada — com proteção de picos','boost');self.curve.addItem('Padrão — sem reforço','normal');form.addRow('Curva de volume',self.curve);layout.addLayout(form)
   row=W.QHBoxLayout();self.slider=W.QSlider(QtCore.Qt.Horizontal);self.slider.setRange(0,MAX_VOLUME);self.slider.setSingleStep(1);self.slider.setPageStep(5);self.number=W.QLabel('—%');self.number.setMinimumWidth(50);row.addWidget(self.slider);row.addWidget(self.number);layout.addLayout(row)
   self.mute=W.QCheckBox('Silenciar');layout.addWidget(self.mute)
-  note=W.QLabel('Este é o mesmo volume da saída no KDE, sem controle ou saída extra.\nPadrão do sistema acompanha a saída escolhida no KDE. Uma saída fixa recebe o efeito sem mudar a saída padrão.\nFechar esta janela mantém o processamento de áudio ativo.');note.setWordWrap(True);note.setStyleSheet('color:#888;');layout.addWidget(note)
+  note=W.QLabel('Este é o mesmo volume da saída no KDE, sem controle ou saída extra.\nPadrão do sistema acompanha a saída escolhida no KDE. Uma saída fixa recebe o efeito sem mudar a saída padrão.\nFechar esta janela mantém o ícone na bandeja e o áudio ativo.');note.setWordWrap(True);note.setStyleSheet('color:#888;');layout.addWidget(note)
   layout.addStretch();buttons=W.QHBoxLayout();self.toggle=W.QPushButton('Ativar');self.refresh_button=W.QPushButton('Atualizar saídas');self.remove=W.QPushButton('Desinstalar');buttons.addWidget(self.toggle);buttons.addWidget(self.refresh_button);buttons.addStretch();buttons.addWidget(self.remove);layout.addLayout(buttons)
   self.action=QtCore.QProcess(self);self.action.finished.connect(self.action_done);self.action.errorOccurred.connect(self.process_error)
   self.reader=QtCore.QProcess(self);self.reader.finished.connect(self.status_done)
@@ -97,7 +97,7 @@ def main():
    return 0
   QtNetwork.QLocalServer.removeServer('open-audio-bridge-'+str(os.getuid()))
   server=QtNetwork.QLocalServer();server.listen('open-audio-bridge-'+str(os.getuid()))
- window=Window(tray='--tray' in sys.argv)
+ window=Window()
  if server:
   def incoming():
    client=server.nextPendingConnection()

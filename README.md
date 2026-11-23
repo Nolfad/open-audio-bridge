@@ -1,4 +1,4 @@
-# Open Audio Bridge 0.3.0
+# Open Audio Bridge 0.3.1
 
 Controle de volume integrado ao KDE, com instalação gráfica e restauração do áudio anterior. Validado em Tuxedo OS, com PipeWire 1.6.8 e WirePlumber 0.5.15.
 
@@ -6,7 +6,7 @@ Controle de volume integrado ao KDE, com instalação gráfica e restauração d
 
 ## Baixar e instalar
 
-Baixe o ZIP do instalador na [última release](https://github.com/Nolfad/open-audio-bridge/releases/latest). Em **Assets**, escolha **open-audio-bridge-0.3.0.zip**, extraia e siga os passos abaixo. O download é público, sem necessidade de entrar no GitHub. O arquivo `SHA256SUMS` permite conferir a integridade do pacote.
+Baixe o ZIP do instalador na [última release](https://github.com/Nolfad/open-audio-bridge/releases/latest). Em **Assets**, escolha **open-audio-bridge-0.3.1.zip**, extraia e siga os passos abaixo. O download é público, sem necessidade de entrar no GitHub. O arquivo `SHA256SUMS` permite conferir a integridade do pacote.
 
 Para testar alterações ainda não lançadas, há pacotes temporários em [Actions → Build Linux](https://github.com/Nolfad/open-audio-bridge/actions/workflows/build.yml), na seção **Artifacts** de cada execução aprovada. Esses arquivos exigem login e ficam disponíveis por 30 dias.
 
@@ -15,7 +15,7 @@ Para testar alterações ainda não lançadas, há pacotes temporários em [Acti
 1. Extraia o ZIP em uma pasta.
 2. Abra **Instalar.desktop** (aparece como **Instalar Open Audio Bridge**).
 3. Clique em **Instalar e ativar**. Se o KDE pedir, autorize a execução do lançador.
-4. Clique em **Abrir controle**. Depois, abra **Open Audio Bridge** pelo menu de aplicativos.
+4. Clique em **Abrir controle**. Depois, abra **Open Audio Bridge** pelo menu de aplicativos ou pelo ícone na bandeja.
 
 A instalação fica na sua conta, sem sudo. A pasta extraída pode ser removida depois. Atualizações usam o mesmo instalador e preservam a configuração anterior. Na migração da saída virtual, o nível anterior é convertido para a nova escala. A primeira ativação limita o fone anteriormente escolhido a 50% e as demais saídas a 35%; depois você pode ajustar normalmente até 150%. Atualizações do modo nativo preservam os volumes dos dispositivos.
 
@@ -31,7 +31,7 @@ Dependências: Python 3, PyQt5, gcc, PipeWire 1.6+, WirePlumber 0.5.15+, pipewir
 - **Padrão:** mantém a escala anterior. Trocar a curva preserva o nível atual quando ele cabe na escala escolhida, ajustando a porcentagem mostrada. Ao sair de Reforçada acima de 130%, a escala Padrão chega ao limite de 150% e o nível é reduzido.
 - **Silenciar** e 0% produzem silêncio.
 - **Desativar** remove o efeito e restaura o controle original do dispositivo, preservando a porcentagem e o estado mudo atuais. O nível percebido pode mudar ao remover a equalização e o reforço.
-- Fechar a janela deixa o processamento ativo, sem um segundo ícone na bandeja. Abra pelo menu de aplicativos quando precisar. A bandeja é opcional usando `gui.py --tray`.
+- O ícone do Open Audio Bridge permanece na bandeja e inicia com a sessão. Clique nele para abrir a janela, ativar/desativar o efeito ou conferir o estado. Fechar a janela mantém o ícone e o processamento ativos. O ícone de áudio do KDE continua controlando o mesmo volume.
 
 O efeito é inserido dentro das saídas reais estéreo. No modo automático, as saídas disponíveis ficam preparadas para que a troca no KDE não dependa de abrir a janela. As regras do próprio sistema decidem a saída após uma desconexão. No modo fixo, o efeito aguarda aquela saída; outras continuam com áudio original.
 
@@ -88,7 +88,7 @@ cd dist
 sha256sum -c SHA256SUMS
 ```
 
-O script compila os dois plugins com avisos tratados como erros e executa os testes em uma cópia temporária. Só gera `dist/open-audio-bridge-0.3.0.zip` e `dist/SHA256SUMS` se tudo passar. O pacote preserva a permissão de execução do lançador e não inclui configurações pessoais, bibliotecas compiladas ou caches. A mesma fonte gera o mesmo ZIP.
+O script compila os dois plugins com avisos tratados como erros e executa os testes em uma cópia temporária. Só gera `dist/open-audio-bridge-0.3.1.zip` e `dist/SHA256SUMS` se tudo passar. O pacote preserva a permissão de execução do lançador e não inclui configurações pessoais, bibliotecas compiladas ou caches. A mesma fonte gera o mesmo ZIP.
 
 O GitHub Actions executa esse processo em Ubuntu 24.04 a cada push, pull request ou execução manual. Os testes não precisam de placa de som e não alteram o áudio da máquina. A validação do CI cobre o processamento e as simulações de configuração/interface; integração com o servidor de áudio e dispositivos reais continua sendo uma verificação local.
 

@@ -323,7 +323,7 @@ def install(source):
   b.save(b.SETTINGS,config)
   executable=json.dumps(sys.executable);backend=json.dumps(str(b.APP/'native.py').replace('%','%%'))
   b.atomic(b.SERVICE,'[Unit]\nDescription=Open Audio Bridge native DSP\nAfter=pipewire.service pipewire-pulse.service wireplumber.service\nRequires=pipewire.service\n\n[Service]\nType=simple\nExecStart='+executable+' '+backend+' daemon\nExecStopPost='+executable+' '+backend+' recover\nRestart=on-failure\nRestartSec=1\nTimeoutStopSec=10\n\n[Install]\nWantedBy=default.target\n')
-  b.atomic(b.DESKTOP,b.desktop_text());b.AUTOSTART.unlink(missing_ok=True)
+  b.atomic(b.DESKTOP,b.desktop_text());b.atomic(b.AUTOSTART,b.desktop_text(True))
   b.run(['systemctl','--user','daemon-reload'])
   pid=b.run(['systemctl','--user','show','pipewire','--property=MainPID','--value']).stdout.strip()
   environment=Path('/proc')/pid/'environ'

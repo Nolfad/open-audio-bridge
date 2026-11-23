@@ -1,3 +1,9 @@
+# 0.3.1 — 23/11/2026
+
+- Restaurado o ícone do Open Audio Bridge na bandeja por padrão, incluindo início com a sessão.
+- Fechar a janela mantém o ícone disponível para reabrir os controles.
+- O volume e a saída continuam integrados ao KDE; o ícone não cria outro dispositivo de áudio.
+
 # 0.3.0 — 23/11/2026
 
 - Processamento dentro das saídas reais do PipeWire, sem dispositivo virtual ou segundo controle de volume.

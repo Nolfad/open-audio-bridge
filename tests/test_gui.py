@@ -43,12 +43,14 @@ class GuiTests(unittest.TestCase):
   self.assertEqual(window.device.currentData(),'bluez_output.missing')
   self.assertIn('desconectad',window.device.currentText().lower())
   self.assertEqual(window.device.itemData(0),'default')
- def test_no_tray_by_default_and_close_accepts_even_with_system_tray(self):
+ def test_tray_remains_available_when_window_closes(self):
   window,_=self.native_window()
-  self.assertFalse(window.tray.isVisible())
+  self.assertTrue(window.tray.isVisible())
   event=QtGui.QCloseEvent()
   with mock.patch.object(W.QSystemTrayIcon,'isSystemTrayAvailable',return_value=True):window.closeEvent(event)
-  self.assertTrue(event.isAccepted())
+  self.assertFalse(event.isAccepted())
+  self.assertTrue(window.tray.isVisible())
+  window.show_window();self.assertTrue(window.isVisible())
  def test_volume_reads_external_changes_and_writes_same_backend_value(self):
   window,state=self.native_window()
   self.assertEqual(window.slider.value(),37)
@@ -76,5 +78,6 @@ class GuiTests(unittest.TestCase):
   self.assertFalse(event.isAccepted())
   window.busy=False;window.volume_timer.start(180);event=QtGui.QCloseEvent();window.closeEvent(event)
   self.assertFalse(event.isAccepted())
-  window.volume_timer.stop();event=QtGui.QCloseEvent();window.closeEvent(event)
+  window.volume_timer.stop();event=QtGui.QCloseEvent()
+  with mock.patch.object(W.QSystemTrayIcon,'isSystemTrayAvailable',return_value=False):window.closeEvent(event)
   self.assertTrue(event.isAccepted())

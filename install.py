@@ -26,7 +26,7 @@ class Installer(W.QWidget):
  def failed(self,message):self.text.setText(message);self.button.setEnabled(True)
  def done(self,code,_):
   if code:self.failed(bytes(self.process.readAllStandardError()).decode(errors='replace'));return
-  self.text.setText('Instalado! Abra Open Audio Bridge no menu de aplicativos.\nUse o volume do KDE normalmente. Fechar a janela mantém o processamento de áudio ativo.');self.button.setText('Abrir controle');self.button.setEnabled(True);self.button.clicked.disconnect();self.button.clicked.connect(self.open)
+  self.text.setText('Instalado! Abra Open Audio Bridge pelo menu de aplicativos ou pelo ícone na bandeja.\nUse o volume do KDE normalmente. Fechar a janela mantém o processamento de áudio ativo.');self.button.setText('Abrir controle');self.button.setEnabled(True);self.button.clicked.disconnect();self.button.clicked.connect(self.open)
  def open(self):
   subprocess.Popen([sys.executable,str(Path.home()/'.local/share/open-audio-bridge/app/gui.py')],start_new_session=True);W.QApplication.instance().quit()
 if __name__=='__main__':
