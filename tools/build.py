@@ -16,7 +16,7 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[1]
 FILES = (
     'bridge.py', 'gui.py', 'install.py', 'oab.py', 'Instalar.desktop',
-    'README.md', 'CHANGELOG.md', 'LICENSE', 'tools/build.py',
+    'README.md', 'CHANGELOG.md', 'LICENSE', 'tools/build.py', 'native.py', 'native_mixer.py',
 )
 
 

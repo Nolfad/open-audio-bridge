@@ -1,3 +1,12 @@
+# 0.3.0 — 23/11/2026
+
+- Processamento dentro das saídas reais do PipeWire, sem dispositivo virtual ou segundo controle de volume.
+- “Padrão do sistema” acompanha a seleção do KDE; saída fixa opcional restringe o efeito sem forçar o destino dos aplicativos.
+- Janela controla o mesmo volume e mudo do KDE. Bandeja opcional, desativada por padrão.
+- Preserva equalização, dinâmica, curva +20 pontos e proteção final de picos em −4 dBFS.
+- Migração reversível das versões anteriores, com cópias de segurança; perfis de reprodução privados preservam os controles do microfone.
+- Exige PipeWire 1.6+ e WirePlumber 0.5.15+. Validado com HyperX USB e HDMI no Tuxedo OS. Saídas surround e volume Bluetooth por hardware ainda não são suportados.
+
 # 0.2.3 — 22/11/2026
 
 - Curva corrigida conforme a intenção esclarecida: +20 pontos percentuais, não multiplicação por dois. 80% → antigos 100%; 100% → antigos 120%.

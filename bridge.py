@@ -2,7 +2,7 @@
 """Open Audio Bridge desktop lifecycle and PipeWire graph. No root required."""
 from pathlib import Path
 import argparse,base64,fcntl,json,math,os,shutil,signal,subprocess,sys,time,tempfile
-VERSION='0.2.3'
+VERSION='0.3.0'
 MAX_VOLUME=150
 ROOT=Path(__file__).resolve().parent
 HOME_DIR=Path.home()
@@ -388,4 +388,6 @@ def main():
    else:globals()[args.command]()
   print('Concluído.');return 0
  except Exception as e:print(str(e),file=sys.stderr);return 1
-if __name__=='__main__':sys.exit(main())
+if __name__=='__main__':
+ import native
+ native.main()

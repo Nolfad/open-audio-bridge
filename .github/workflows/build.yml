@@ -91,7 +91,7 @@ jobs:
               raise SystemExit('Falta a entrada desta versão no CHANGELOG.md')
           notes = '\n'.join(section.splitlines()[1:]).strip()
           notes += f'\n\n## Instalar\n\nBaixe **open-audio-bridge-{current}.zip** nos arquivos abaixo, extraia e abra **Instalar.desktop**. Clique em **Instalar e ativar**.\n\n'
-          notes += 'Instalação na sua conta, sem sudo. Dependências: Python 3, PyQt5, gcc, PipeWire, pipewire-pulse, pactl e systemd de usuário. O instalador compila os plugins no computador de destino. Validado em Tuxedo OS/KDE.\n\n'
+          notes += 'Instalação na sua conta, sem sudo. Dependências: Python 3, PyQt5, gcc, PipeWire 1.6+, WirePlumber 0.5.15+, pipewire-pulse, pactl e systemd de usuário. O instalador compila os plugins no computador de destino. Validado em Tuxedo OS/KDE.\n\n'
           notes += 'O arquivo SHA256SUMS permite conferir a integridade do ZIP. Prefira o ZIP do instalador aos arquivos automáticos “Source code” do GitHub.\n'
           Path('release-notes.md').write_text(notes, encoding='utf-8')
           PY

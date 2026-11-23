@@ -6,19 +6,19 @@ from PyQt5 import QtCore,QtGui,QtNetwork,QtWidgets as W
 from bridge import MAX_VOLUME
 ROOT=Path(__file__).resolve().parent
 class Window(W.QMainWindow):
- def __init__(self):
-  super().__init__();self.setWindowTitle('Open Audio Bridge');self.resize(560,450);self.busy=False;self.last={};self.queue=[]
+ def __init__(self,tray=False):
+  super().__init__();self.setWindowTitle('Open Audio Bridge');self.resize(560,450);self.busy=False;self.last={};self.queue=[];self.use_tray=tray
   icon=QtGui.QIcon.fromTheme('audio-volume-high')
   self.setWindowIcon(icon if not icon.isNull() else self.style().standardIcon(W.QStyle.SP_MediaVolume))
   body=W.QWidget();self.setCentralWidget(body);layout=W.QVBoxLayout(body);layout.setContentsMargins(28,24,28,24);layout.setSpacing(16)
   title=W.QLabel('Seu volume, do jeito certo');title.setStyleSheet('font-size:23px;font-weight:600');layout.addWidget(title)
-  subtitle=W.QLabel('Mais 20 pontos na escala, com proteção de picos.');subtitle.setWordWrap(True);layout.addWidget(subtitle)
+  subtitle=W.QLabel('Reforço com proteção de picos na própria saída de áudio do KDE.');subtitle.setWordWrap(True);layout.addWidget(subtitle)
   self.status_label=W.QLabel('Verificando áudio…');layout.addWidget(self.status_label)
-  form=W.QFormLayout();self.device=W.QComboBox();self.device.setMinimumContentsLength(25);self.device.setSizeAdjustPolicy(W.QComboBox.AdjustToMinimumContentsLengthWithIcon);form.addRow('Ouvir em',self.device)
-  self.curve=W.QComboBox();self.curve.addItem('Reforçada — 80% ≈ antigos 100%','boost');self.curve.addItem('Padrão — escala original','normal');form.addRow('Controle de volume',self.curve);layout.addLayout(form)
+  form=W.QFormLayout();self.device=W.QComboBox();self.device.addItem('Padrão do sistema','default');self.device.setMinimumContentsLength(25);self.device.setSizeAdjustPolicy(W.QComboBox.AdjustToMinimumContentsLengthWithIcon);form.addRow('Ouvir em',self.device)
+  self.curve=W.QComboBox();self.curve.addItem('Reforçada — com proteção de picos','boost');self.curve.addItem('Padrão — sem reforço','normal');form.addRow('Curva de volume',self.curve);layout.addLayout(form)
   row=W.QHBoxLayout();self.slider=W.QSlider(QtCore.Qt.Horizontal);self.slider.setRange(0,MAX_VOLUME);self.slider.setSingleStep(1);self.slider.setPageStep(5);self.number=W.QLabel('—%');self.number.setMinimumWidth(50);row.addWidget(self.slider);row.addWidget(self.number);layout.addLayout(row)
   self.mute=W.QCheckBox('Silenciar');layout.addWidget(self.mute)
-  note=W.QLabel('Reforçada: 80% ≈ antigos 100%; 100% ≈ antigos 120%.\nA proteção reduz picos quando necessário. Ao trocar para Padrão,\nníveis além do alcance dessa escala são reduzidos ao máximo dela.');note.setWordWrap(True);note.setStyleSheet('color:#888;');layout.addWidget(note)
+  note=W.QLabel('Este é o mesmo volume da saída no KDE, sem controle ou saída extra.\nPadrão do sistema acompanha a saída escolhida no KDE. Uma saída fixa recebe o efeito sem mudar a saída padrão.\nFechar esta janela mantém o processamento de áudio ativo.');note.setWordWrap(True);note.setStyleSheet('color:#888;');layout.addWidget(note)
   layout.addStretch();buttons=W.QHBoxLayout();self.toggle=W.QPushButton('Ativar');self.refresh_button=W.QPushButton('Atualizar saídas');self.remove=W.QPushButton('Desinstalar');buttons.addWidget(self.toggle);buttons.addWidget(self.refresh_button);buttons.addStretch();buttons.addWidget(self.remove);layout.addLayout(buttons)
   self.action=QtCore.QProcess(self);self.action.finished.connect(self.action_done);self.action.errorOccurred.connect(self.process_error)
   self.reader=QtCore.QProcess(self);self.reader.finished.connect(self.status_done)
@@ -30,9 +30,11 @@ class Window(W.QMainWindow):
   self.mute.toggled.connect(lambda v:self.execute('mute','1' if v else '0'))
   self.toggle.clicked.connect(lambda:self.execute('disable' if self.last.get('enabled') else 'enable'))
   self.refresh_button.clicked.connect(self.refresh);self.remove.clicked.connect(self.uninstall)
-  self.tray=W.QSystemTrayIcon(self.windowIcon(),self);menu=W.QMenu();menu.addAction('Abrir controle',self.show_window);menu.addAction('Fechar janela da bandeja',self.quit_ui);self.tray.setContextMenu(menu);self.tray.activated.connect(lambda reason:self.show_window() if reason==W.QSystemTrayIcon.Trigger else None);self.tray.setToolTip('Open Audio Bridge');self.tray.show();self.refresh()
+  self.tray=W.QSystemTrayIcon(self.windowIcon(),self);menu=W.QMenu();menu.addAction('Abrir controle',self.show_window);menu.addAction('Sair da interface',self.quit_ui);self.tray.setContextMenu(menu);self.tray.activated.connect(lambda reason:self.show_window() if reason==W.QSystemTrayIcon.Trigger else None);self.tray.setToolTip('Open Audio Bridge')
+  if self.use_tray:self.tray.show()
+  self.refresh()
  def quit_ui(self):
-  if self.busy:self.show_window();return
+  if self.busy or self.volume_timer.isActive():self.show_window();return
   W.QApplication.instance().quit()
  def show_window(self):self.showNormal();self.raise_();self.activateWindow()
  def controls(self,enabled):
@@ -62,11 +64,16 @@ class Window(W.QMainWindow):
   except (ValueError,UnicodeError):return
   self.last=data
   if data.get('error'):self.status_label.setText('Áudio indisponível: '+data['error']);return
-  self.status_label.setText('● Ativo — controle integrado ao KDE' if data.get('active') else 'Saída desconectada — aguardando conexão' if data.get('enabled') and not data.get('connected') else 'Selecione Open Audio Bridge como saída padrão no KDE' if data.get('sink_present') else 'Desativado — áudio original')
+  target=data.get('target') or 'default';description=data.get('resolved_description') or data.get('resolved_target') or target
+  destination=('Padrão do sistema' if target=='default' else 'Saída fixa')+(' — '+description if data.get('connected') else ' — saída indisponível')
+  effect='● Ativo' if data.get('active') else 'Aguardando saída' if data.get('enabled') and not data.get('connected') else 'Efeito indisponível' if data.get('enabled') else 'Desativado — áudio original'
+  self.status_label.setText(effect+'\n'+destination);self.status_label.setWordWrap(True)
   self.toggle.setText('Desativar' if data.get('enabled') else 'Ativar')
-  self.device.blockSignals(True);self.device.clear()
+  self.device.blockSignals(True);self.device.clear();self.device.addItem('Padrão do sistema','default')
   for item in data.get('devices',[]):self.device.addItem(item['description'],item['name'])
-  index=self.device.findData(data.get('target'));self.device.setCurrentIndex(index);self.device.blockSignals(False)
+  index=self.device.findData(target)
+  if index<0:self.device.addItem(target+' (desconectada)',target);index=self.device.count()-1
+  self.device.setCurrentIndex(index);self.device.blockSignals(False)
   self.curve.blockSignals(True);self.curve.setCurrentIndex(max(0,self.curve.findData(data.get('curve','boost'))));self.curve.blockSignals(False)
   if not self.slider.isSliderDown() and not self.volume_timer.isActive():
    self.slider.blockSignals(True);self.slider.setValue(round(data.get('volume',0)));self.number.setText(f"{round(data.get('volume',0))}%");self.slider.blockSignals(False)
@@ -74,7 +81,9 @@ class Window(W.QMainWindow):
  def uninstall(self):
   if W.QMessageBox.question(self,'Desinstalar Open Audio Bridge','Desinstalar e restaurar a configuração de áudio anterior?',W.QMessageBox.Yes|W.QMessageBox.No)==W.QMessageBox.Yes:self.execute('uninstall')
  def closeEvent(self,event):
-  if W.QSystemTrayIcon.isSystemTrayAvailable():event.ignore();self.hide()
+  if self.busy or self.volume_timer.isActive():
+   event.ignore();self.status_label.setText('Aguarde o ajuste terminar antes de fechar.');return
+  if self.use_tray and W.QSystemTrayIcon.isSystemTrayAvailable():event.ignore();self.hide()
   else:event.accept()
 
 def main():
@@ -88,7 +97,7 @@ def main():
    return 0
   QtNetwork.QLocalServer.removeServer('open-audio-bridge-'+str(os.getuid()))
   server=QtNetwork.QLocalServer();server.listen('open-audio-bridge-'+str(os.getuid()))
- window=Window()
+ window=Window(tray='--tray' in sys.argv)
  if server:
   def incoming():
    client=server.nextPendingConnection()
