@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Install or update Open Audio Bridge
+Name[pt_BR]=Instalar ou atualizar Open Audio Bridge
+Comment=Install or open Open Audio Bridge in your account
+Comment[pt_BR]=Instalar ou abrir Open Audio Bridge na sua conta
+Exec=/usr/bin/open-audio-bridge
+Icon=audio-volume-high
+Terminal=false
+Categories=AudioVideo;Audio;
+StartupNotify=true

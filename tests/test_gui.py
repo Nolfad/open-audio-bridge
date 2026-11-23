@@ -14,7 +14,7 @@ class GuiTests(unittest.TestCase):
   tmp=tempfile.TemporaryDirectory();self.addCleanup(tmp.cleanup);root=Path(tmp.name)
   status=dict(active=True,enabled=True,connected=True,volume=37,mute=False,curve='boost',target='default',resolved_target='alsa_output.speakers',resolved_description='Alto-falantes',routing='native',devices=[dict(name='alsa_output.speakers',description='Alto-falantes')])
   status.update(changes);state=root/'state.json';state.write_text(json.dumps(status))
-  (root/'bridge.py').write_text('''import sys,json\nfrom pathlib import Path\np=Path(__file__).with_name('state.json')\ns=json.loads(p.read_text())\nif sys.argv[1]=='status':print(json.dumps(s))\nelif sys.argv[1]=='set-device':\n s['target']=sys.argv[2];p.write_text(json.dumps(s))\nelif sys.argv[1]=='volume':\n s['volume']=int(sys.argv[2]);p.write_text(json.dumps(s))\nelif sys.argv[1]=='set-sound':\n s['sound']=json.loads(sys.argv[2]);p.write_text(json.dumps(s))\nelse:raise SystemExit(2)\n''')
+  (root/'bridge.py').write_text('''import sys,json\nfrom pathlib import Path\np=Path(__file__).with_name('state.json')\ns=json.loads(p.read_text())\nif sys.argv[1]=='status':print(json.dumps(s))\nelif sys.argv[1]=='set-device':\n s['target']=sys.argv[2];p.write_text(json.dumps(s))\nelif sys.argv[1]=='volume':\n s['volume']=int(sys.argv[2]);p.write_text(json.dumps(s))\nelif sys.argv[1]=='set-sound':\n s['sound']=json.loads(sys.argv[2]);p.write_text(json.dumps(s))\nelif sys.argv[1]=='update-auto':\n s.setdefault('updates',{})['automatic']=sys.argv[2]=='1';p.write_text(json.dumps(s))\nelif sys.argv[1]=='update':\n s['manual_update']=True;s.setdefault('updates',{}).update(message='Atualização aplicada.',state='updated',last_checked=1700000000);p.write_text(json.dumps(s))\nelse:raise SystemExit(2)\n''')
   patch=mock.patch.object(gui,'ROOT',root);patch.start();self.addCleanup(patch.stop)
   window=gui.Window();window.timer.stop()
   def cleanup():
@@ -100,3 +100,89 @@ class GuiTests(unittest.TestCase):
   self.assertFalse(saved['sound']['eq_enabled'])
   self.assertEqual(saved['sound']['drive_db'],10)
   self.assertEqual(saved['sound']['bands'][0],-2)
+
+ def test_update_controls_persist_preference_and_apply_manually(self):
+  window,state=self.native_window(updates=dict(automatic=True,last_checked=0,available_version=None,message='',error='',state='idle'))
+  self.assertIn('Atualizações',[window.tabs.tabText(i) for i in range(window.tabs.count())])
+  self.assertTrue(window.update_auto.isChecked())
+  window.update_auto.setChecked(False);wait(.25)
+  self.assertFalse(json.loads(state.read_text())['updates']['automatic'])
+  window.update_auto.setChecked(True);wait(.25)
+  self.assertTrue(json.loads(state.read_text())['updates']['automatic'])
+  window.update_button.click()
+  self.assertTrue(window.busy)
+  self.assertFalse(window.update_auto.isEnabled())
+  event=QtGui.QCloseEvent();window.closeEvent(event);self.assertFalse(event.isAccepted())
+  wait(.3)
+  self.assertTrue(json.loads(state.read_text())['manual_update'])
+  self.assertIn('Atualização aplicada',window.update_status.text())
+  self.assertNotIn('Nunca',window.update_checked.text())
+  self.assertIn('Ativo',window.status_label.text())
+
+ def test_update_error_preserves_audio_status_and_shows_version(self):
+  window,_=self.native_window(version=gui.VERSION,installed=True,updates=dict(automatic=False,last_checked=0,available_version='99.1.0',message='Tente novamente.',error='Sem conexão',state='error'))
+  self.assertFalse(window.update_auto.isChecked())
+  self.assertIn(gui.VERSION,window.update_version.text())
+  self.assertIn('99.1.0',window.update_status.text())
+  self.assertIn('Sem conexão',window.update_status.text())
+  self.assertIn('Ativo',window.status_label.text())
+
+ def test_reload_waits_for_pending_changes_and_emits_once(self):
+  window,state=self.native_window(installed=True,version=gui.VERSION)
+  requested=[];window.restart_requested.connect(requested.append)
+  data=json.loads(state.read_text());data['version']='99.1.0';state.write_text(json.dumps(data))
+  window.sound_timer.start(10000);window.refresh();wait(.15)
+  self.assertEqual(requested,[])
+  window.sound_timer.stop();window.volume_timer.start(10000);window.refresh();wait(.15)
+  self.assertEqual(requested,[])
+  window.volume_timer.stop();window.busy=True;window.refresh();wait(.15)
+  self.assertEqual(requested,[])
+  window.busy=False;window.show();window.refresh();wait(.15)
+  self.assertEqual(requested,[True])
+  window.refresh();wait(.15);self.assertEqual(requested,[True])
+
+ def test_missing_version_and_uninstalled_source_do_not_restart(self):
+  window,state=self.native_window(installed=True)
+  requested=[];window.restart_requested.connect(requested.append)
+  window.refresh();wait(.15);self.assertEqual(requested,[])
+  data=json.loads(state.read_text());data.update(installed=False,version='99.1.0');state.write_text(json.dumps(data))
+  window.refresh();wait(.15);self.assertEqual(requested,[])
+
+ def test_restart_releases_singleton_before_spawning_and_preserves_hidden_state(self):
+  window,_=self.native_window();window.hide()
+  server=gui.QtNetwork.QLocalServer();name='oab-test-restart-'+str(os.getpid());server.listen(name)
+  self.addCleanup(lambda:gui.QtNetwork.QLocalServer.removeServer(name))
+  def replacement(program,args,directory):
+   self.assertFalse(server.isListening())
+   self.assertEqual(program,sys.executable)
+   self.assertIn('--tray',args)
+   probe=gui.QtNetwork.QLocalServer();self.assertTrue(probe.listen(name));probe.close();gui.QtNetwork.QLocalServer.removeServer(name)
+   return (True,12345)
+  with mock.patch.object(QtCore.QProcess,'startDetached',side_effect=replacement),mock.patch.object(app,'quit') as quit_app:
+   gui.restart_interface(window,app,server,name,False)
+   quit_app.assert_called_once()
+  self.assertFalse(window.tray.isVisible())
+
+ def test_failed_restart_restores_singleton_and_keeps_tray(self):
+  window,_=self.native_window();window.restart_pending=True
+  server=gui.QtNetwork.QLocalServer();name='oab-test-restart-failure-'+str(os.getpid());server.listen(name)
+  self.addCleanup(lambda:gui.QtNetwork.QLocalServer.removeServer(name))
+  with mock.patch.object(QtCore.QProcess,'startDetached',return_value=(False,0)),mock.patch.object(app,'quit') as quit_app:
+   gui.restart_interface(window,app,server,name,True)
+   quit_app.assert_not_called()
+  self.assertTrue(server.isListening());server.close()
+  self.assertFalse(window.restart_pending)
+  self.assertTrue(window.tray.isVisible())
+  self.assertIn('Feche e abra',window.update_status.text())
+
+ def test_restart_callback_rechecks_new_pending_change(self):
+  window,state=self.native_window(installed=True,version=gui.VERSION)
+  requested=[];window.restart_requested.connect(requested.append)
+  window.last['version']='99.1.0';window.maybe_restart()
+  window.volume_timer.start(10000);wait(.03)
+  self.assertEqual(requested,[])
+  self.assertFalse(window.restart_pending)
+  window.volume_timer.stop();window.queue=[('volume','40')];window.maybe_restart();wait(.03)
+  self.assertEqual(requested,[])
+  window.queue=[];window.maybe_restart();wait(.03)
+  self.assertEqual(requested,[False])

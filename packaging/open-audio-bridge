@@ -1,0 +1,49 @@
+#!/usr/bin/python3
+"""Open the managed user application, or offer its packaged installer."""
+import ast
+import json
+import os
+import re
+from pathlib import Path
+import sys
+
+PACKAGE = Path('/usr/share/open-audio-bridge-installer')
+REQUIRED = ('gui.py', 'bridge.py', 'native.py', 'native_mixer.py', 'sound.py', 'oab.py', 'updater.py')
+
+
+def version(path):
+    for node in ast.parse(path.read_text(encoding='utf-8')).body:
+        if isinstance(node, ast.Assign) and any(
+                isinstance(target, ast.Name) and target.id == 'VERSION' for target in node.targets):
+            value = ast.literal_eval(node.value)
+            if isinstance(value, str) and re.fullmatch(r'\d+\.\d+\.\d+', value):
+                return tuple(int(part) for part in value.split('.'))
+    raise ValueError('Missing or invalid VERSION')
+
+
+def entrypoint(home):
+    home = Path(home)
+    app = home / '.local/share/open-audio-bridge/app'
+    state = home / '.local/state/open-audio-bridge-desktop'
+    try:
+        settings = json.loads((state / 'settings.json').read_text(encoding='utf-8'))
+        baseline = json.loads((state / 'native-baseline.json').read_text(encoding='utf-8'))
+        managed = (isinstance(settings, dict) and settings.get('routing') == 'native'
+                   and isinstance(baseline, dict) and isinstance(baseline.get('files'), dict))
+        if (managed and all((app / name).is_file() for name in REQUIRED)
+                and version(app / 'bridge.py') >= version(PACKAGE / 'bridge.py')):
+            return app / 'gui.py'
+    except (OSError, ValueError, SyntaxError):
+        pass
+    # An orphan is preserved: the normal installer performs ownership checks
+    # before it can change an existing app or the user's audio configuration.
+    return PACKAGE / 'install.py'
+
+
+def command(home, arguments):
+    return ['/usr/bin/python3', str(entrypoint(home)), *arguments]
+
+
+if __name__ == '__main__':
+    args = command(Path.home(), sys.argv[1:])
+    os.execv(args[0], args)

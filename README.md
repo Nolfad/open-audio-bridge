@@ -1,4 +1,4 @@
-# Open Audio Bridge 0.4.0
+# Open Audio Bridge 0.5.0
 
 Controle de volume integrado ao KDE, com instalação gráfica e restauração do áudio anterior. Validado em Tuxedo OS, com PipeWire 1.6.8 e WirePlumber 0.5.15.
 
@@ -6,11 +6,21 @@ Controle de volume integrado ao KDE, com instalação gráfica e restauração d
 
 ## Baixar e instalar
 
-Baixe o ZIP do instalador na [última release](https://github.com/Nolfad/open-audio-bridge/releases/latest). Em **Assets**, escolha **open-audio-bridge-0.4.0.zip**, extraia e siga os passos abaixo. O download é público, sem necessidade de entrar no GitHub. O arquivo `SHA256SUMS` permite conferir a integridade do pacote.
+Baixe o instalador na [última release](https://github.com/Nolfad/open-audio-bridge/releases/latest). Há um **.deb para Tuxedo/Ubuntu/Debian compatíveis** e um **ZIP** para instalação na conta do usuário. Em **Assets**, escolha **open-audio-bridge-0.5.0.zip**, extraia e siga os passos abaixo. O download é público, sem necessidade de entrar no GitHub. O arquivo `SHA256SUMS` permite conferir a integridade do pacote.
 
 Para testar alterações ainda não lançadas, há pacotes temporários em [Actions → Build Linux](https://github.com/Nolfad/open-audio-bridge/actions/workflows/build.yml), na seção **Artifacts** de cada execução aprovada. Esses arquivos exigem login e ficam disponíveis por 30 dias.
 
-## Instalar
+## Instalar com .deb
+
+1. Baixe **open-audio-bridge-installer_0.5.0_all.deb** e abra no gerenciador de programas. Ele instala as dependências; essa etapa usa a autorização administrativa normal do sistema.
+2. Abra **Instalar ou atualizar Open Audio Bridge** no menu e clique em **Instalar e ativar**.
+3. Depois use **Open Audio Bridge** no menu ou o ícone da bandeja.
+
+O pacote é um **instalador**, sem scripts que alterem o áudio ao instalar pelo APT. A aplicação e suas atualizações ficam na conta do usuário. A versão mostrada pelo gerenciador de pacotes é a do instalador; a versão do programa aparece na aba Atualizações. Este download não configura um repositório APT. Para remover tudo, desinstale primeiro pelo aplicativo e depois remova o pacote `open-audio-bridge-installer`. Remover apenas o pacote não apaga aplicativos pessoais ou backups.
+
+São necessários **PipeWire 1.6+ e WirePlumber 0.5.15+**. O .deb declara essas dependências e não tenta substituir o áudio de uma distribuição antiga ou adicionar repositórios externos.
+
+## Instalar com ZIP
 
 1. Extraia o ZIP em uma pasta.
 2. Abra **Instalar.desktop** (aparece como **Instalar Open Audio Bridge**).
@@ -19,7 +29,21 @@ Para testar alterações ainda não lançadas, há pacotes temporários em [Acti
 
 A instalação fica na sua conta, sem sudo. A pasta extraída pode ser removida depois. Atualizações usam o mesmo instalador e preservam a configuração anterior. Na migração da saída virtual, o nível anterior é convertido para a nova escala. A primeira ativação limita o fone anteriormente escolhido a 50% e as demais saídas a 35%; depois você pode ajustar normalmente até 150%. Atualizações do modo nativo preservam os volumes dos dispositivos.
 
-Dependências: Python 3, PyQt5, gcc, PipeWire 1.6+, WirePlumber 0.5.15+, pipewire-pulse, pw-cli, pw-dump e pactl (pacote pulseaudio-utils) e systemd de usuário. Se faltar algum componente, o instalador informa antes de alterar o áudio. O pacote inclui o código-fonte; o instalador compila os dois plugins para o computador de destino. Não é um executável independente de dependências.
+Dependências: Python 3, PyQt5, gcc e cabeçalhos de desenvolvimento da libc, PipeWire 1.6+, WirePlumber 0.5.15+, pipewire-pulse, pw-cli, pw-dump e pactl (pacote pulseaudio-utils) e systemd de usuário. Se faltar algum componente, o instalador informa antes de alterar o áudio. O pacote inclui o código-fonte; o instalador compila os dois plugins para o computador de destino. Não é um executável independente de dependências.
+
+## Atualizações automáticas
+
+A partir da versão 0.5, as atualizações automáticas ficam ativadas. O programa consulta a **última release estável** de `Nolfad/open-audio-bridge` a cada seis horas; um serviço da sua conta verifica pendências a cada quinze minutos. Não é necessário deixar a janela aberta. Computador desligado ou sessão encerrada não executam atualizações.
+
+Quando há uma versão nova, a instalação automática aguarda não haver reprodução ativa. Se algum aplicativo mantém um fluxo aberto, ela pode continuar esperando. A aba **Atualizações** permite desligar a automação, ver o resultado da última busca ou usar **Buscar e atualizar agora**, que pode interromper o áudio por alguns instantes. Versões de desenvolvimento, prereleases e commits sem release não são instalados. Quem usa 0.4 ou anterior precisa instalar 0.5 uma vez para receber essa função.
+
+Os pacotes vêm de URLs HTTPS fixas do repositório, têm tamanho limitado e passam pela conferência SHA256 e validação de caminhos/versão antes de executar o instalador. O checksum confere integridade; não é uma assinatura independente do GitHub. O instalador mantém cópias de segurança e restauração em caso de falha. Presets, ganho, volume, preferência de atualização e estado ativado/desativado são preservados. A interface 0.5 ou posterior recarrega sozinha ao concluir uma atualização, mantendo o ícone na bandeja.
+
+As atualizações da aplicação não usam sudo. As dependências do sistema continuam sob responsabilidade do gerenciador de pacotes. Se uma versão futura exigir dependências indisponíveis, a atualização deve falhar sem substituir a instalação funcional; consulte a mensagem na aba Atualizações.
+
+## Flatpak e Flathub
+
+Esta versão não é um Flatpak nem foi enviada ao Flathub. O processamento atual carrega bibliotecas no PipeWire do host e configura serviços de usuário e perfis do WirePlumber. Empacotá-lo adequadamente em Flatpak requer separar ou adaptar essa integração, além de atender à revisão e às permissões do Flathub. Não usamos um Flatpak apenas para executar comandos fora do isolamento. Referências: [permissões Flatpak](https://docs.flatpak.org/en/latest/sandbox-permissions.html) e [requisitos Flathub](https://docs.flathub.org/docs/for-app-authors/requirements).
 
 ## Usar
 
@@ -102,12 +126,12 @@ cd dist
 sha256sum -c SHA256SUMS
 ```
 
-O script compila os dois plugins com avisos tratados como erros e executa os testes em uma cópia temporária. Só gera `dist/open-audio-bridge-0.4.0.zip` e `dist/SHA256SUMS` se tudo passar. O pacote preserva a permissão de execução do lançador e não inclui configurações pessoais, bibliotecas compiladas ou caches. A mesma fonte gera o mesmo ZIP.
+O script compila os dois plugins com avisos tratados como erros e executa os testes em uma cópia temporária. Só gera `dist/open-audio-bridge-0.5.0.zip`, `dist/open-audio-bridge-installer_0.5.0_all.deb` e `dist/SHA256SUMS` se tudo passar. O build requer também `dpkg-deb` (pacote `dpkg`). O pacote preserva a permissão de execução do lançador e não inclui configurações pessoais, bibliotecas compiladas ou caches. A mesma fonte gera o mesmo ZIP.
 
 O GitHub Actions executa esse processo em Ubuntu 24.04 a cada push, pull request ou execução manual. Os testes não precisam de placa de som e não alteram o áudio da máquina. A validação do CI cobre o processamento e as simulações de configuração/interface; integração com o servidor de áudio e dispositivos reais continua sendo uma verificação local.
 
 ### Publicar uma versão
 
-Atualize `VERSION` em `bridge.py`, o `CHANGELOG.md` e os exemplos do README. Envie o commit e uma tag no formato `vX.Y.Z` correspondente à versão. O workflow confere a tag, compila e testa o pacote e, somente após o sucesso, cria uma release pública com o instalador e `SHA256SUMS`. Pushes comuns continuam gerando apenas builds de desenvolvimento.
+Atualize `VERSION` em `bridge.py`, o `CHANGELOG.md` e os exemplos do README. Envie o commit e uma tag no formato `vX.Y.Z` correspondente à versão. O workflow confere a tag, compila e testa o pacote e, somente após o sucesso, cria uma release pública com os instaladores ZIP/.deb e `SHA256SUMS`. Pushes comuns continuam gerando apenas builds de desenvolvimento.
 
 O workflow prepara a release como rascunho antes de publicá-la. Se uma publicação falhar e deixar um rascunho, confira o erro e remova somente esse rascunho antes de executar novamente; releases existentes não são sobrescritas automaticamente.

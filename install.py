@@ -13,7 +13,7 @@ class Installer(W.QWidget):
   super().__init__();self.setWindowTitle('Instalar Open Audio Bridge');self.resize(500,270)
   layout=W.QVBoxLayout(self);layout.setContentsMargins(28,25,28,25);layout.setSpacing(18)
   title=W.QLabel('Open Audio Bridge');title.setStyleSheet('font-size:24px;font-weight:600');layout.addWidget(title)
-  self.text=W.QLabel('Reforço de áudio com proteção de picos na própria saída do KDE. Você continua usando os mesmos dispositivos e controles de volume, sem saída ou controle extra.\n\nInstala apenas na sua conta e guarda a configuração anterior para restauração.');self.text.setWordWrap(True);layout.addWidget(self.text)
+  self.text=W.QLabel('Reforço de áudio com proteção de picos na própria saída do KDE. Você continua usando os mesmos dispositivos e controles de volume, sem saída ou controle extra.\n\nInstala apenas na sua conta e guarda a configuração anterior para restauração. As atualizações automáticas ficam ativadas; você pode desligá-las na aba Atualizações.');self.text.setWordWrap(True);layout.addWidget(self.text)
   self.button=W.QPushButton('Instalar e ativar');layout.addWidget(self.button);self.button.clicked.connect(self.install)
   self.process=QtCore.QProcess(self);self.process.finished.connect(self.done)
   self.process.errorOccurred.connect(lambda _:self.failed(self.process.errorString()))

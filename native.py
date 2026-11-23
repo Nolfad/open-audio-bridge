@@ -4,6 +4,7 @@ from pathlib import Path
 import argparse,ast,hashlib,json,os,shutil,signal,subprocess,sys,tempfile,time
 import bridge as b
 import sound
+import updater
 
 RULE=b.HOME_DIR/'.config/wireplumber/wireplumber.conf.d/93-open-audio-bridge-native.conf'
 DROPIN=b.HOME_DIR/'.config/systemd/user/pipewire.service.d/91-open-audio-bridge-native.conf'
@@ -61,7 +62,7 @@ def status():
  try:
   config=settings();items=candidates(b.sinks());default=b.default_sink();target=target_name(config,default)
   sink=next((s for s in items if s['name']==target),None);ready=b.read(READY,{})
-  return {'installed':config.get('routing')=='native','routing':'native','version':b.VERSION,'sound':sound.normalize(config.get('sound')),'curve':config.get('curve','boost'),'enabled':config.get('enabled',False),'target':config.get('target','default'),'resolved_target':target,'resolved_description':b.device_description(sink) if sink else target,'default':default,'connected':sink is not None,'active':bool(config.get('enabled') and target in ready.get('attached',[])),'volume':round(b.percent_of(sink),1) if sink else 0,'mute':sink['mute'] if sink else False,'devices':[{'name':s['name'],'description':b.device_description(s)} for s in items],'error':ready.get('error','')}
+  return {'installed':config.get('routing')=='native','routing':'native','version':b.VERSION,'sound':sound.normalize(config.get('sound')),'updates':updater.status(),'curve':config.get('curve','boost'),'enabled':config.get('enabled',False),'target':config.get('target','default'),'resolved_target':target,'resolved_description':b.device_description(sink) if sink else target,'default':default,'connected':sink is not None,'active':bool(config.get('enabled') and target in ready.get('attached',[])),'volume':round(b.percent_of(sink),1) if sink else 0,'mute':sink['mute'] if sink else False,'devices':[{'name':s['name'],'description':b.device_description(s)} for s in items],'error':ready.get('error','')}
  except b.BridgeError as e:return {'routing':'native','installed':BASE.exists(),'enabled':False,'active':False,'devices':[],'error':str(e),'version':b.VERSION}
 
 def attach(node,sink,curve,owned,sound_config=None):
@@ -269,11 +270,11 @@ def configure(key,value):
 
 def uninstall():
  if not BASE.exists():return
- disable();base=b.read(BASE);b.restore(base['files'])
+ updater.remove_schedule();disable();base=b.read(BASE);b.restore(base['files'])
  b.run(['systemctl','--user','daemon-reload']);restart_policy(base.get('volumes',{}))
  if base.get('default') and b.sink_by_name(base['default']):b.run(['pactl','set-default-sink',base['default']])
  if b.APP.exists():shutil.rmtree(b.APP)
- b.SETTINGS.unlink(missing_ok=True);OWNED.unlink(missing_ok=True);READY.unlink(missing_ok=True)
+ b.SETTINGS.unlink(missing_ok=True);OWNED.unlink(missing_ok=True);READY.unlink(missing_ok=True);updater.STATUS.unlink(missing_ok=True)
  BASE.rename(BASE.with_name('native-uninstalled-'+str(time.time_ns())+'.json'))
  if b.BASELINE.exists():b.BASELINE.rename(b.BASELINE.with_name('legacy-retired-'+str(time.time_ns())+'.json'))
 
@@ -288,7 +289,20 @@ def install_plugin(source,target):
  # Never truncate a library that the audio server may still have mapped.
  b.atomic(target,source.read_bytes(),source.stat().st_mode&0o777)
 
-def install(source):
+def restore_state(source):
+ # Keep advisory lock inodes alive while restoring all other application state.
+ b.STATE.mkdir(parents=True,exist_ok=True)
+ for entry in b.STATE.iterdir():
+  if entry.name.endswith('.lock'):continue
+  if entry.is_dir() and not entry.is_symlink():shutil.rmtree(entry)
+  else:entry.unlink()
+ if source.exists():
+  for entry in source.iterdir():
+   if entry.name.endswith('.lock'):continue
+   if entry.is_dir():shutil.copytree(entry,b.STATE/entry.name)
+   else:shutil.copy2(entry,b.STATE/entry.name)
+
+def install(source,preserve_enabled=False,scheduled=False):
  b.prerequisites()
  import oab
  if oab.version('pipewire')<(1,6,0) or oab.version('wireplumber')<(0,5,15):raise b.BridgeError('A integração nativa exige PipeWire 1.6+ e WirePlumber 0.5.15+.')
@@ -310,6 +324,9 @@ def install(source):
  legacy_sink=b.sink_by_name(b.SINK)
  streams=[x['index'] for x in json.loads(b.run(['pactl','-f','json','list','sink-inputs']).stdout) if legacy_sink and x['sink']==legacy_sink['index']]
  levels=level_snapshot();default=b.default_sink();running=b.run(['systemctl','--user','is-active','open-audio-bridge'],check=False).returncode==0
+ if scheduled and (not updater.automatic() or updater.playback_busy()):
+  shutil.rmtree(stage,ignore_errors=True);shutil.rmtree(backup,ignore_errors=True)
+  raise updater.DeferredUpdate('Atualização adiada até uma pausa na reprodução.')
  try:
   if is_native:disable()
   elif legacy:b.disable();before=settings()
@@ -350,7 +367,8 @@ def install(source):
    if target in current:
     p=min(50,migration_percent(version,config['curve'],old));current[target]={'volume':[round(p*65536/100*x) for x in before.get('balance',[1,1])],'mute':before.get('mute',False)}
   restore_levels(current)
-  enable()
+  if not preserve_enabled or before.get('enabled',True):enable()
+  updater.setup()
   destination=default if default!=b.SINK else before.get('target',b.default_sink())
   if b.sink_by_name(destination):
    b.run(['pactl','set-default-sink',destination])
@@ -364,9 +382,8 @@ def install(source):
   b.restore(created);b.restore(snap)
   if b.APP.exists():shutil.rmtree(b.APP)
   if (backup/'app').exists():shutil.copytree(backup/'app',b.APP)
-  if b.STATE.exists():shutil.rmtree(b.STATE)
-  if (backup/'state').exists():shutil.copytree(backup/'state',b.STATE)
-  b.run(['systemctl','--user','daemon-reload']);restart_policy(levels)
+  restore_state(backup/'state')
+  b.run(['systemctl','--user','daemon-reload']);updater.sync_schedule();restart_policy(levels)
   if running:
    b.run(['systemctl','--user','enable','--now','open-audio-bridge'],timeout=20)
    pid=int(b.run(['systemctl','--user','show','open-audio-bridge','--property=MainPID','--value']).stdout.strip())
@@ -379,13 +396,20 @@ def install(source):
  finally:shutil.rmtree(stage,ignore_errors=True)
 
 def main():
- p=argparse.ArgumentParser();p.add_argument('command',choices=['install','enable','disable','uninstall','status','set-device','set-curve','set-sound','volume','mute','daemon','recover']);p.add_argument('value',nargs='?');a=p.parse_args()
+ p=argparse.ArgumentParser();p.add_argument('command',choices=['install','install-update','update','update-auto','enable','disable','uninstall','status','set-device','set-curve','set-sound','volume','mute','daemon','recover']);p.add_argument('value',nargs='?');a=p.parse_args()
  try:
   if a.command=='status':print(json.dumps(status(),ensure_ascii=False));return
+  if a.command=='update':print(json.dumps(updater.check_apply(manual=True),ensure_ascii=False));return
+  if a.command=='update-auto':updater.set_auto(a.value=='1');print('Concluído.');return
   b.STATE.mkdir(parents=True,exist_ok=True)
   with (b.STATE/'native.lock').open('w') as lock:
    if a.command not in ['daemon','recover']:b.fcntl.flock(lock,b.fcntl.LOCK_EX)
    if a.command=='install':install(Path(__file__).resolve().parent)
+   elif a.command=='install-update':
+    if not updater.installed():raise b.BridgeError('A instalação foi removida; atualização cancelada.')
+    if updater.version_tuple(b.VERSION)<=updater.version_tuple(updater.file_version(b.APP/'bridge.py')):print('A instalação já está atualizada.');return
+    if a.value=='scheduled' and (not updater.automatic() or updater.playback_busy()):print('Atualização adiada até uma pausa na reprodução.');sys.exit(75)
+    install(Path(__file__).resolve().parent,preserve_enabled=True,scheduled=a.value=='scheduled')
    elif a.command=='set-device':configure('target',a.value)
    elif a.command=='set-curve':configure('curve',a.value)
    elif a.command=='set-sound':configure('sound',json.loads(a.value))
@@ -393,5 +417,6 @@ def main():
    elif a.command=='mute':set_mute(a.value=='1')
    else:globals()[a.command]()
   print('Concluído.')
+ except updater.DeferredUpdate as e:print(str(e));sys.exit(75)
  except (b.BridgeError,ValueError,OSError) as e:print('ERRO: '+str(e),file=sys.stderr);sys.exit(1)
 if __name__=='__main__':main()

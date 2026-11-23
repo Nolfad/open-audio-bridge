@@ -1,0 +1,41 @@
+Open Audio Bridge — instalador Debian
+=====================================
+
+Este pacote instala fontes e um iniciador. Não ativa o processamento de áudio,
+não modifica contas e não executa serviços durante a instalação pelo dpkg/apt.
+Não há scripts postinst, prerm ou postrm. Arquitetura: all; os plugins nativos
+são compilados pelo instalador na conta do usuário com o gcc instalado.
+
+Abra "Instalar ou atualizar Open Audio Bridge" no menu de aplicativos ou execute
+open-audio-bridge.
+Na primeira execução aparece o instalador gráfico. Ao escolher instalar, ele
+instala o aplicativo em ~/.local/share/open-audio-bridge/app e configura o
+PipeWire/WirePlumber apenas na sua conta. O iniciador abre uma instalação
+nativa gerenciada já existente, quando sua versão é igual ou mais recente que
+a versão incluída no pacote. Para uma versão mais antiga, abre o instalador
+gráfico para que você possa migrar para a versão incluída, com suporte a
+atualizações pelo aplicativo. Arquivos órfãos passam pelas verificações de
+propriedade do instalador e não são removidos pelo iniciador.
+
+O aplicativo instalado cria ~/.local/share/applications/open-audio-bridge.desktop
+para abrir seu controle. O pacote tem uma entrada separada no menu,
+open-audio-bridge-installer.desktop, que continua acessível mesmo quando uma
+versão antiga do aplicativo pessoal está instalada. As atualizações
+oferecidas dentro do aplicativo atualizam essa instalação pessoal. A versão
+mostrada pelo dpkg corresponde ao instalador Debian; pode ser diferente da
+versão do aplicativo em execução. Atualizar este pacote não atualiza nem
+reinstala automaticamente o aplicativo de cada usuário.
+
+Para remover completamente, use primeiro a opção de desinstalação do aplicativo
+em cada conta que o instalou. Ela restaura as configurações anteriores do áudio.
+Depois remova open-audio-bridge-installer pelo gerenciador de pacotes. Remover
+ou purgar apenas o pacote Debian NÃO remove aplicativos, configurações ou
+backups das contas dos usuários. Caso já tenha removido o pacote, o aplicativo
+pessoal continua disponível no menu; use sua opção de desinstalação.
+
+Requisitos: Python 3.10+, PyQt5, gcc, cabeçalhos libc6-dev (ou libc-dev), PipeWire 1.6+, WirePlumber 0.5.15+,
+pipewire-pulse, pipewire-bin, pulseaudio-utils e systemd. Se a distribuição não
+oferecer essas versões, o gerenciador de pacotes deve recusar a instalação;
+este pacote não adiciona repositórios nem substitui componentes do sistema.
+
+Licença MIT; veja copyright e LICENSE nas fontes incluídas.

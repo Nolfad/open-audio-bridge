@@ -16,7 +16,7 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[1]
 FILES = (
     'bridge.py', 'gui.py', 'install.py', 'oab.py', 'Instalar.desktop',
-    'README.md', 'CHANGELOG.md', 'LICENSE', 'tools/build.py', 'native.py', 'native_mixer.py', 'sound.py',
+    'README.md', 'CHANGELOG.md', 'LICENSE', 'tools/build.py', 'native.py', 'native_mixer.py', 'sound.py', 'updater.py', 'tools/build_deb.py',
 )
 
 
@@ -34,6 +34,7 @@ def version():
 
 def sources():
     paths = [ROOT / name for name in FILES]
+    paths.extend(p for p in (ROOT / 'packaging').iterdir() if p.is_file())
     for directory, suffixes in (
         ('src', {'.c', '.h'}), ('profiles', {'.json'}), ('tests', {'.py'}),
     ):
@@ -82,7 +83,10 @@ def main():
         digest = hashlib.sha256(archive.read_bytes()).hexdigest()
         args.output.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(archive, args.output / archive.name)
-        (args.output / 'SHA256SUMS').write_text(f'{digest}  {archive.name}\n', encoding='utf-8')
+        from build_deb import build_deb
+        deb = build_deb(stage, [p.relative_to(ROOT) for p in paths], version(), args.output)
+        deb_digest = hashlib.sha256(deb.read_bytes()).hexdigest()
+        (args.output / 'SHA256SUMS').write_text(f'{digest}  {archive.name}\n{deb_digest}  {deb.name}\n', encoding='utf-8')
     print(f'Build validado: {args.output / archive.name}')
 
 

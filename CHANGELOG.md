@@ -1,3 +1,12 @@
+# 0.5.0 — 23/11/2026
+
+- Atualização automática pelas releases estáveis oficiais do GitHub, com conferência de versão e SHA256, extração segura e bloqueio de instalações simultâneas.
+- Busca a cada seis horas; instalações pendentes aguardam pausa na reprodução, com nova tentativa a cada quinze minutos. Atualização manual disponível na nova aba Atualizações.
+- Preserva presets, volumes, ganho, preferência de atualização e estado ativado/desativado. Backups e restauração continuam disponíveis.
+- Interface recarrega após atualizar, mantendo janela/bandeja. Correção na restauração para preservar as travas de operações concorrentes.
+- Novo instalador .deb para Tuxedo/Ubuntu/Debian compatíveis, com dependências declaradas. A aplicação e seu atualizador funcionam na conta do usuário; o .deb é um instalador, não um repositório APT.
+- Exige PipeWire 1.6+ e WirePlumber 0.5.15+. Quem usa 0.4 ou anterior precisa instalar esta versão uma vez para habilitar a atualização automática.
+
 # 0.4.0 — 23/11/2026
 
 - Ganho protegido separado do equalizador de timbre: reforço ajustável de 0 a 18 dB, mantendo a pré-equalização leve existente.

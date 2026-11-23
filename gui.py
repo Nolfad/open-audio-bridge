@@ -4,11 +4,12 @@ import json,sys
 import sound
 from pathlib import Path
 from PyQt5 import QtCore,QtGui,QtNetwork,QtWidgets as W
-from bridge import MAX_VOLUME
+from bridge import MAX_VOLUME,VERSION
 ROOT=Path(__file__).resolve().parent
 class Window(W.QMainWindow):
+ restart_requested=QtCore.pyqtSignal(bool)
  def __init__(self,tray=True):
-  super().__init__();self.setWindowTitle('Open Audio Bridge');self.resize(650,610);self.busy=False;self.last={};self.queue=[];self.use_tray=tray
+  super().__init__();self.setWindowTitle('Open Audio Bridge');self.resize(650,610);self.busy=False;self.last={};self.queue=[];self.use_tray=tray;self.restart_pending=False
   icon=QtGui.QIcon.fromTheme('audio-volume-high')
   self.setWindowIcon(icon if not icon.isNull() else self.style().standardIcon(W.QStyle.SP_MediaVolume))
   body=W.QWidget();self.setCentralWidget(body);layout=W.QVBoxLayout(body);layout.setContentsMargins(28,24,28,24);layout.setSpacing(16)
@@ -24,7 +25,7 @@ class Window(W.QMainWindow):
   drive_row=W.QFormLayout();self.drive=W.QDoubleSpinBox();self.drive.setRange(0,18);self.drive.setSuffix(' dB');self.drive.setDecimals(1);self.drive.setValue(18);drive_row.addRow('Reforço antes da proteção',self.drive);layout.addLayout(drive_row)
   drive_note=W.QLabel('A pré-equalização e a proteção de picos acompanham o ganho. Os presets de timbre ficam na aba Equalizador e não alteram este ajuste.');drive_note.setWordWrap(True);layout.addWidget(drive_note)
   note=W.QLabel('Este é o mesmo volume da saída no KDE, sem controle ou saída extra.\nPadrão do sistema acompanha a saída escolhida no KDE. Uma saída fixa recebe o efeito sem mudar a saída padrão.\nFechar esta janela mantém o ícone na bandeja e o áudio ativo.');note.setWordWrap(True);note.setStyleSheet('color:#888;');layout.addWidget(note)
-  layout.addStretch();layout=outer;self.build_equalizer();buttons=W.QHBoxLayout();self.toggle=W.QPushButton('Ativar');self.refresh_button=W.QPushButton('Atualizar saídas');self.remove=W.QPushButton('Desinstalar');buttons.addWidget(self.toggle);buttons.addWidget(self.refresh_button);buttons.addStretch();buttons.addWidget(self.remove);layout.addLayout(buttons)
+  layout.addStretch();layout=outer;self.build_equalizer();self.build_updates();buttons=W.QHBoxLayout();self.toggle=W.QPushButton('Ativar');self.refresh_button=W.QPushButton('Atualizar saídas');self.remove=W.QPushButton('Desinstalar');buttons.addWidget(self.toggle);buttons.addWidget(self.refresh_button);buttons.addStretch();buttons.addWidget(self.remove);layout.addLayout(buttons)
   self.action=QtCore.QProcess(self);self.action.finished.connect(self.action_done);self.action.errorOccurred.connect(self.process_error)
   self.reader=QtCore.QProcess(self);self.reader.finished.connect(self.status_done)
   self.timer=QtCore.QTimer(self);self.timer.timeout.connect(self.refresh);self.timer.start(1500)
@@ -40,6 +41,40 @@ class Window(W.QMainWindow):
   self.tray=W.QSystemTrayIcon(self.windowIcon(),self);menu=W.QMenu();menu.addAction('Abrir controle',self.show_window);menu.addAction('Sair da interface',self.quit_ui);self.tray.setContextMenu(menu);self.tray.activated.connect(lambda reason:self.show_window() if reason==W.QSystemTrayIcon.Trigger else None);self.tray.setToolTip('Open Audio Bridge')
   if self.use_tray:self.tray.show()
   self.refresh()
+ def build_updates(self):
+  page=W.QWidget();layout=W.QVBoxLayout(page);layout.setSpacing(16)
+  self.update_version=W.QLabel('Interface em execução: '+VERSION);layout.addWidget(self.update_version)
+  self.update_auto=W.QCheckBox('Buscar e instalar atualizações automaticamente');self.update_auto.setChecked(True);layout.addWidget(self.update_auto)
+  note=W.QLabel('A atualização automática aguarda um momento sem áudio em reprodução. Buscar e atualizar agora aplica a versão disponível imediatamente e pode interromper o áudio por alguns instantes. Seus ajustes são preservados.');note.setWordWrap(True);layout.addWidget(note)
+  self.update_button=W.QPushButton('Buscar e atualizar agora');layout.addWidget(self.update_button)
+  self.update_checked=W.QLabel('Última busca: nunca');layout.addWidget(self.update_checked)
+  self.update_status=W.QLabel('Aguardando informações de atualização…');self.update_status.setWordWrap(True);self.update_status.setTextFormat(QtCore.Qt.PlainText);layout.addWidget(self.update_status)
+  layout.addStretch();self.tabs.addTab(page,'Atualizações')
+  self.update_auto.toggled.connect(lambda enabled:self.execute('update-auto','1' if enabled else '0'))
+  self.update_button.clicked.connect(lambda:self.execute('update'))
+ def sync_updates(self,data):
+  updates=data.get('updates') or {};installed=data.get('version')
+  self.update_version.setText('Interface em execução: '+VERSION+'\nVersão instalada: '+(str(installed) if data.get('installed') and installed else 'não informada'))
+  self.update_auto.blockSignals(True);self.update_auto.setChecked(updates.get('automatic',True));self.update_auto.blockSignals(False)
+  checked=updates.get('last_checked',0)
+  stamp=QtCore.QDateTime.fromSecsSinceEpoch(int(checked)).toString('dd/MM/yyyy HH:mm:ss') if isinstance(checked,(int,float)) and checked>0 else 'nunca'
+  self.update_checked.setText('Última busca: '+stamp)
+  states={'idle':'Pronto para buscar atualizações.','checking':'Buscando atualizações…','deferred':'Atualização aguardando o áudio parar.','updating':'Instalando atualização…','updated':'Atualização aplicada.','error':'Não foi possível atualizar.'}
+  lines=[updates.get('message') or states.get(updates.get('state'),'Pronto para buscar atualizações.')]
+  if updates.get('available_version'):lines.append('Versão disponível: '+str(updates['available_version']))
+  if updates.get('error'):lines.append('Falha na atualização: '+str(updates['error']))
+  self.update_status.setText('\n'.join(lines))
+  self.maybe_restart()
+ def pending_changes(self):
+  return self.busy or bool(self.queue) or self.volume_timer.isActive() or self.sound_timer.isActive() or self.slider.isSliderDown() or any(slider.isSliderDown() for slider in self.eq_sliders)
+ def maybe_restart(self):
+  version=self.last.get('version')
+  if self.restart_pending or self.pending_changes() or not self.last.get('installed') or not isinstance(version,str) or not version or version==VERSION:return
+  self.restart_pending=True
+  QtCore.QTimer.singleShot(0,self.request_restart)
+ def request_restart(self):
+  if self.pending_changes():self.restart_pending=False;return
+  self.restart_requested.emit(self.isVisible())
  def build_equalizer(self):
   self.sound_state=sound.normalize();page=W.QWidget();layout=W.QVBoxLayout(page);layout.setSpacing(16)
   self.eq_enabled=W.QCheckBox('Ativar equalizador de timbre');layout.addWidget(self.eq_enabled)
@@ -80,18 +115,20 @@ class Window(W.QMainWindow):
   self.eq_preset.blockSignals(True);self.eq_preset.setCurrentIndex(self.eq_preset.findData('custom'));self.eq_preset.blockSignals(False)
   if not self.eq_sliders[index].isSliderDown():self.sound_timer.start(350)
  def quit_ui(self):
-  if self.busy or self.volume_timer.isActive() or self.sound_timer.isActive():self.show_window();return
+  if self.pending_changes():self.show_window();return
   W.QApplication.instance().quit()
  def show_window(self):self.showNormal();self.raise_();self.activateWindow()
  def controls(self,enabled):
-  for x in [self.device,self.curve,self.slider,self.mute,self.toggle,self.remove,self.drive,self.eq_enabled,self.eq_preset]:x.setEnabled(enabled)
+  for x in [self.device,self.curve,self.slider,self.mute,self.toggle,self.remove,self.drive,self.eq_enabled,self.eq_preset,self.update_auto,self.update_button]:x.setEnabled(enabled)
   for slider in self.eq_sliders:slider.setEnabled(enabled and self.eq_enabled.isChecked())
  def volume_changed(self,value):
   self.number.setText(f'{value}%');self.volume_timer.start(180)
  def execute(self,command,value=None):
   if self.busy:
    self.queue=[item for item in self.queue if item[0]!=command]+[(command,value)];return
-  self.busy=True;self.controls(False);self.status_label.setText('Aplicando…');self.pending_command=command
+  self.busy=True;self.controls(False);self.pending_command=command
+  if command=='update':self.update_status.setText('Buscando e aplicando atualização…')
+  elif command!='update-auto':self.status_label.setText('Aplicando…')
   self.action.start(sys.executable,[str(ROOT/'bridge.py'),command]+([str(value)] if value is not None else []))
  def process_error(self,_):
   if self.action.state()==QtCore.QProcess.NotRunning and self.busy:
@@ -109,7 +146,7 @@ class Window(W.QMainWindow):
   if code or self.busy:return
   try:data=json.loads(bytes(self.reader.readAllStandardOutput()))
   except (ValueError,UnicodeError):return
-  self.last=data
+  self.last=data;self.sync_updates(data)
   if data.get('error'):self.status_label.setText('Áudio indisponível: '+data['error']);return
   target=data.get('target') or 'default';description=data.get('resolved_description') or data.get('resolved_target') or target
   destination=('Padrão do sistema' if target=='default' else 'Saída fixa')+(' — '+description if data.get('connected') else ' — saída indisponível')
@@ -129,23 +166,37 @@ class Window(W.QMainWindow):
  def uninstall(self):
   if W.QMessageBox.question(self,'Desinstalar Open Audio Bridge','Desinstalar e restaurar a configuração de áudio anterior?',W.QMessageBox.Yes|W.QMessageBox.No)==W.QMessageBox.Yes:self.execute('uninstall')
  def closeEvent(self,event):
-  if self.busy or self.volume_timer.isActive() or self.sound_timer.isActive():
+  if self.pending_changes():
    event.ignore();self.status_label.setText('Aguarde o ajuste terminar antes de fechar.');return
   if self.use_tray and W.QSystemTrayIcon.isSystemTrayAvailable():event.ignore();self.hide()
   else:event.accept()
 
+def restart_interface(window,app,server,server_name,visible):
+ # Release the singleton before launching, or the new process would show this old one.
+ if window.pending_changes():window.restart_pending=False;return
+ if server:server.close();QtNetwork.QLocalServer.removeServer(server_name)
+ arguments=[str(ROOT/'gui.py')]+([] if visible else ['--tray'])
+ started=QtCore.QProcess.startDetached(sys.executable,arguments,str(ROOT))
+ if isinstance(started,tuple):started=started[0]
+ if not started:
+  if server:server.listen(server_name)
+  window.restart_pending=False;window.update_status.setText('Atualização instalada. Feche e abra a interface para carregar a nova versão.');return
+ window.timer.stop();window.tray.hide();app.quit()
+
 def main():
  app=W.QApplication(sys.argv);app.setApplicationName('Open Audio Bridge');app.setOrganizationName('Open Audio Bridge')
- server=None
+ server=None;server_name=None
  if '--screenshot' not in sys.argv:
   import os
-  socket=QtNetwork.QLocalSocket();socket.connectToServer('open-audio-bridge-'+str(os.getuid()))
+  server_name='open-audio-bridge-'+str(os.getuid())
+  socket=QtNetwork.QLocalSocket();socket.connectToServer(server_name)
   if socket.waitForConnected(200):
    if '--tray' not in sys.argv:socket.write(b'show');socket.waitForBytesWritten(200)
    return 0
-  QtNetwork.QLocalServer.removeServer('open-audio-bridge-'+str(os.getuid()))
-  server=QtNetwork.QLocalServer();server.listen('open-audio-bridge-'+str(os.getuid()))
+  QtNetwork.QLocalServer.removeServer(server_name)
+  server=QtNetwork.QLocalServer();server.listen(server_name)
  window=Window()
+ if '--screenshot' not in sys.argv:window.restart_requested.connect(lambda visible:restart_interface(window,app,server,server_name,visible))
  if server:
   def incoming():
    client=server.nextPendingConnection()
