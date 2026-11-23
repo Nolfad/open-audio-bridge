@@ -1,4 +1,4 @@
-# Open Audio Bridge 0.3.1
+# Open Audio Bridge 0.4.0
 
 Controle de volume integrado ao KDE, com instalação gráfica e restauração do áudio anterior. Validado em Tuxedo OS, com PipeWire 1.6.8 e WirePlumber 0.5.15.
 
@@ -6,7 +6,7 @@ Controle de volume integrado ao KDE, com instalação gráfica e restauração d
 
 ## Baixar e instalar
 
-Baixe o ZIP do instalador na [última release](https://github.com/Nolfad/open-audio-bridge/releases/latest). Em **Assets**, escolha **open-audio-bridge-0.3.1.zip**, extraia e siga os passos abaixo. O download é público, sem necessidade de entrar no GitHub. O arquivo `SHA256SUMS` permite conferir a integridade do pacote.
+Baixe o ZIP do instalador na [última release](https://github.com/Nolfad/open-audio-bridge/releases/latest). Em **Assets**, escolha **open-audio-bridge-0.4.0.zip**, extraia e siga os passos abaixo. O download é público, sem necessidade de entrar no GitHub. O arquivo `SHA256SUMS` permite conferir a integridade do pacote.
 
 Para testar alterações ainda não lançadas, há pacotes temporários em [Actions → Build Linux](https://github.com/Nolfad/open-audio-bridge/actions/workflows/build.yml), na seção **Artifacts** de cada execução aprovada. Esses arquivos exigem login e ficam disponíveis por 30 dias.
 
@@ -37,6 +37,18 @@ O efeito é inserido dentro das saídas reais estéreo. No modo automático, as 
 
 A integração local foi validada com saídas ALSA USB (HyperX Cloud Flight) e HDMI. Saídas surround e controles de volume por hardware de Bluetooth não são suportados nesta versão. Os microfones não recebem processamento nem alterações de ganho.
 
+## Ganho e equalizador independentes
+
+A aba **Volume e ganho** reúne o volume do KDE, a curva de volume e o **Reforço antes da proteção**, de 0 a 18 dB. O valor inicial de 18 dB preserva o som das versões anteriores. A pré-equalização leve continua nessa etapa, seguida pela compressão e proteção de picos.
+
+A aba **Equalizador** oferece **Neutro, Música, Rock, Pop, Funk, Filme e Voz**, além de **Personalizado**. As dez bandas vão de 31,5 Hz a 16 kHz, com ajuste de −6 a +6 dB em passos de 0,5 dB. Os presets são curvas próprias do Open Audio Bridge, não reproduções de Dolby Atmos ou de outro produto.
+
+Escolher um preset ativa o equalizador. Mover uma banda muda o preset para Personalizado. Desmarcar **Ativar equalizador de timbre** desliga apenas essa etapa, mantendo ganho, volume e curva salvos. Uma troca de preset ou ajuste pode causar uma pausa curta enquanto o processamento é substituído com a saída silenciada. Os ajustes persistem ao fechar a janela, reiniciar o serviço e atualizar o programa.
+
+A cadeia é: **pré-equalização → ganho e dinâmica → volume do sistema → equalizador de timbre → proteção final**. A proteção permanece depois do equalizador, com teto de amostra de −4 dBFS. Reforçar bandas pode fazer o limitador atuar mais e reduzir a dinâmica; proteção de picos não significa ausência de qualquer distorção ou efeito perceptível.
+
+Ao atualizar, o equalizador começa desligado para manter o som anterior. Se a janela antiga já estava aberta durante a instalação, use **Sair da interface** na bandeja e abra novamente pelo menu para carregar a interface atualizada.
+
 ## Desinstalar
 
 Clique em **Desinstalar** na janela. O programa restaura os arquivos, a saída padrão e os volumes/mudo preservados na instalação. Os volumes são restaurados nas saídas conectadas. Arquivos anteriores e cópias de segurança das atualizações ficam registrados em `~/.local/state/open-audio-bridge-desktop` e `~/.local/state/open-audio-bridge-upgrades`.
@@ -45,7 +57,7 @@ Não use os comandos de instalação da versão 0.1 enquanto a versão gráfica 
 
 ## O que mudou no volume
 
-A nova versão não aumenta novamente o ganho antes do limitador. Ela preserva a equalização e a dinâmica do perfil anterior `loudness-safe` (+18 dB, teto de amostra −4 dBFS) e muda a curva do controle depois desse processamento. Uma proteção final vem depois do controle.
+A nova versão não aumenta novamente o ganho antes do limitador. Com as configurações iniciais, ela preserva a equalização e a dinâmica do perfil anterior `loudness-safe` (+18 dB, teto de amostra −4 dBFS) e muda a curva do controle depois desse processamento. Uma proteção final vem depois do controle.
 
 | Controle novo | Escala antiga equivalente |
 |---:|---:|
@@ -74,6 +86,8 @@ Na validação local com o processamento nativo em saída de teste isolada das s
 
 A integração real foi verificada alternando HyperX e HDMI como padrão, selecionando destino fixo, controlando o volume por ambos os caminhos e desativando/reativando o efeito. O ganho do microfone permaneceu inalterado. O perfil de hardware só modifica os controles de reprodução, com cópia privada reversível; o perfil de captura permanece original.
 
+A validação da versão 0.4 mediu +6 dB no centro de uma banda ajustada em +6 dB, com pouca alteração distante dessa banda; redução de 18 dB ao levar o reforço de 18 para 0 dB; bypass e preset Neutro idênticos ao som anterior. Mesmo com todas as bandas em +6 dB e volume de 150%, o teto de amostra permaneceu em −4 dBFS. Esses testes usaram sinais gerados em uma saída isolada, sem tocar nos alto-falantes.
+
 ## Desenvolvimento
 
 `python3 -m unittest discover -s tests -v` executa os testes. A interface usa PyQt5; o áudio funciona em serviço de usuário separado. O código e a licença MIT acompanham o pacote.
@@ -88,7 +102,7 @@ cd dist
 sha256sum -c SHA256SUMS
 ```
 
-O script compila os dois plugins com avisos tratados como erros e executa os testes em uma cópia temporária. Só gera `dist/open-audio-bridge-0.3.1.zip` e `dist/SHA256SUMS` se tudo passar. O pacote preserva a permissão de execução do lançador e não inclui configurações pessoais, bibliotecas compiladas ou caches. A mesma fonte gera o mesmo ZIP.
+O script compila os dois plugins com avisos tratados como erros e executa os testes em uma cópia temporária. Só gera `dist/open-audio-bridge-0.4.0.zip` e `dist/SHA256SUMS` se tudo passar. O pacote preserva a permissão de execução do lançador e não inclui configurações pessoais, bibliotecas compiladas ou caches. A mesma fonte gera o mesmo ZIP.
 
 O GitHub Actions executa esse processo em Ubuntu 24.04 a cada push, pull request ou execução manual. Os testes não precisam de placa de som e não alteram o áudio da máquina. A validação do CI cobre o processamento e as simulações de configuração/interface; integração com o servidor de áudio e dispositivos reais continua sendo uma verificação local.
 

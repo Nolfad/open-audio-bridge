@@ -1,3 +1,12 @@
+# 0.4.0 — 23/11/2026
+
+- Ganho protegido separado do equalizador de timbre: reforço ajustável de 0 a 18 dB, mantendo a pré-equalização leve existente.
+- Nova aba Equalizador com dez bandas, presets Neutro, Música, Rock, Pop, Funk, Filme e Voz, e ajuste Personalizado de −6 a +6 dB.
+- Presets próprios; alterar o timbre não muda ganho nem volume do KDE. Bypass do equalizador preserva a curva escolhida.
+- Equalizador depois do volume e antes da proteção final de −4 dBFS. Transições silenciadas e persistência dos ajustes nas atualizações.
+- Atualização e restauração dos plugins substituem os arquivos de forma atômica, preservando bibliotecas que o servidor de áudio ainda tenha carregadas.
+- Bandeja, saída padrão automática e controle único de volume mantidos. Equalizador inicialmente desligado para preservar o som anterior.
+
 # 0.3.1 — 23/11/2026
 
 - Restaurado o ícone do Open Audio Bridge na bandeja por padrão, incluindo início com a sessão.

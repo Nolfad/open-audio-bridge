@@ -2,7 +2,7 @@
 """Open Audio Bridge desktop lifecycle and PipeWire graph. No root required."""
 from pathlib import Path
 import argparse,base64,fcntl,json,math,os,shutil,signal,subprocess,sys,time,tempfile
-VERSION='0.3.1'
+VERSION='0.4.0'
 MAX_VOLUME=150
 ROOT=Path(__file__).resolve().parent
 HOME_DIR=Path.home()
@@ -23,11 +23,13 @@ def run(args,check=True,timeout=15):
  if check and r.returncode:raise BridgeError((r.stderr or r.stdout or 'Falha no comando').strip())
  return r
 
-def atomic(path,data):
+def atomic(path,data,mode=None):
  path=Path(path);path.parent.mkdir(parents=True,exist_ok=True)
- with tempfile.NamedTemporaryFile(mode='w',dir=path.parent,prefix='.'+path.name+'-',delete=False) as f:
+ with tempfile.NamedTemporaryFile(mode='wb' if isinstance(data,bytes) else 'w',dir=path.parent,prefix='.'+path.name+'-',delete=False) as f:
   f.write(data);temp=Path(f.name)
- try:os.replace(temp,path)
+ try:
+  if mode is not None:temp.chmod(mode)
+  os.replace(temp,path)
  finally:temp.unlink(missing_ok=True)
 
 def save(path,data):atomic(path,json.dumps(data,ensure_ascii=False,indent=2)+'\n')
@@ -48,7 +50,7 @@ def restore(snap):
   p=Path(name)
   if value is None:p.unlink(missing_ok=True)
   else:
-   p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes(base64.b64decode(value['data']));p.chmod(value['mode'])
+   atomic(p,base64.b64decode(value['data']),value['mode'])
 
 def validate_percent(value):
  value=float(value)
@@ -77,15 +79,22 @@ def migrate_volume_settings(settings):
   result['volume_curve_version']=3
  return result
 
-def make_graph(lib,curve='boost'):
- import oab
- p=oab.profile_load('loudness-safe');p['drive_db']=18;p['ceiling_db']=-4
+def make_graph(lib,curve='boost',sound_config=None):
+ import oab,sound
+ controls=sound.normalize(sound_config)
+ p=oab.profile_load('loudness-safe');p['drive_db']=controls['drive_db'];p['ceiling_db']=-4
  g=oab.graph(p,lib/'liboab_dynamics.so')
  g['nodes'] += [
   {'type':'ladspa','name':'volume','plugin':str(lib/'liboab_volume.so'),'label':'oab_volume_curve','control':{'Volume L':0.,'Volume R':0.,'Curve':1. if curve=='boost' else 0.}},
   {'type':'ladspa','name':'guard','plugin':str(lib/'liboab_dynamics.so'),'label':'oab_stereo_dynamics','control':{'Drive (dB)':0.,'Threshold (dB)':0.,'Ratio':1.,'Attack (ms)':8.,'Release (ms)':160.,'Ceiling (dB)':-4.}}]
  for c in ['L','R']:
   g['links'] += [{'output':'oab_dyn:Output '+c,'input':'volume:Input '+c},{'output':'volume:Output '+c,'input':'guard:Input '+c}]
+ tone_filters=sound.filters(controls)
+ if tone_filters:
+  g['nodes'].append({'type':'builtin','name':'tone','label':'param_eq','config':{'filters':tone_filters}})
+  g['links']=[link for link in g['links'] if not link['output'].startswith('volume:')]
+  for channel,number in [('L',1),('R',2)]:
+   g['links'] += [{'output':'volume:Output '+channel,'input':f'tone:In {number}'},{'output':f'tone:Out {number}','input':'guard:Input '+channel}]
  g['outputs']=['guard:Output L','guard:Output R']
  g['capture.volumes']=[{'control':'volume:Volume '+c,'min':0.,'max':1.,'scale':'cubic'} for c in ['L','R']]
  return g

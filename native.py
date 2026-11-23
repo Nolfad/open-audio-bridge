@@ -3,6 +3,7 @@
 from pathlib import Path
 import argparse,ast,hashlib,json,os,shutil,signal,subprocess,sys,tempfile,time
 import bridge as b
+import sound
 
 RULE=b.HOME_DIR/'.config/wireplumber/wireplumber.conf.d/93-open-audio-bridge-native.conf'
 DROPIN=b.HOME_DIR/'.config/systemd/user/pipewire.service.d/91-open-audio-bridge-native.conf'
@@ -25,8 +26,8 @@ def params(node):
 def owns_node(node):return 'oab_native_volume:Curve' in params(node)
 def serial(node):return str(node['info']['props'].get('object.serial',node['id']))
 def raw_levels(sink):return [v['value'] for v in sink['volume'].values()]
-def graph(curve,levels,mute):
- g=b.make_graph(Path('.'),curve)
+def graph(curve,levels,mute,sound_config=None):
+ g=b.make_graph(Path('.'),curve,sound_config)
  for node in g['nodes']:
   node['name']='oab_native_'+node['name']
   if node.get('type')=='ladspa':node['plugin']=str(PLUGINS['volume' if node['name']=='oab_native_volume' else 'dynamics'])
@@ -60,20 +61,20 @@ def status():
  try:
   config=settings();items=candidates(b.sinks());default=b.default_sink();target=target_name(config,default)
   sink=next((s for s in items if s['name']==target),None);ready=b.read(READY,{})
-  return {'installed':config.get('routing')=='native','routing':'native','version':b.VERSION,'curve':config.get('curve','boost'),'enabled':config.get('enabled',False),'target':config.get('target','default'),'resolved_target':target,'resolved_description':b.device_description(sink) if sink else target,'default':default,'connected':sink is not None,'active':bool(config.get('enabled') and target in ready.get('attached',[])),'volume':round(b.percent_of(sink),1) if sink else 0,'mute':sink['mute'] if sink else False,'devices':[{'name':s['name'],'description':b.device_description(s)} for s in items],'error':ready.get('error','')}
+  return {'installed':config.get('routing')=='native','routing':'native','version':b.VERSION,'sound':sound.normalize(config.get('sound')),'curve':config.get('curve','boost'),'enabled':config.get('enabled',False),'target':config.get('target','default'),'resolved_target':target,'resolved_description':b.device_description(sink) if sink else target,'default':default,'connected':sink is not None,'active':bool(config.get('enabled') and target in ready.get('attached',[])),'volume':round(b.percent_of(sink),1) if sink else 0,'mute':sink['mute'] if sink else False,'devices':[{'name':s['name'],'description':b.device_description(s)} for s in items],'error':ready.get('error','')}
  except b.BridgeError as e:return {'routing':'native','installed':BASE.exists(),'enabled':False,'active':False,'devices':[],'error':str(e),'version':b.VERSION}
 
-def attach(node,sink,curve,owned):
+def attach(node,sink,curve,owned,sound_config=None):
  name=sink['name']
  if 'HW_VOLUME_CTRL' in sink.get('flags',[]):raise b.BridgeError('A saída '+b.device_description(sink)+' ainda exige preparação do controle nativo.')
  extra=[key for key,value in params(node).items() if (':' in key and not key.startswith('oab_native_')) or (key.startswith('audioconvert.filter-graph') and key!='audioconvert.filter-graph.disable' and bool(value))]
  if extra:raise b.BridgeError('Existe outro processamento nesta saída; ele foi preservado: '+name)
  prior={'volume':raw_levels(sink),'mute':sink['mute']}
  # Persist ownership before touching a node, so ExecStopPost can recover failures.
- owned[name]={'id':node['id'],'serial':serial(node),'curve':curve};b.save(OWNED,owned)
+ owned[name]={'id':node['id'],'serial':serial(node),'curve':curve,'sound':sound.normalize(sound_config)};b.save(OWNED,owned)
  b.run(['pactl','set-sink-mute',name,'1'])
  try:
-  set_props(node,{'params':[KEY,json.dumps(graph(curve,[(v/65536)**3 for v in prior['volume']],prior['mute']))]})
+  set_props(node,{'params':[KEY,json.dumps(graph(curve,[(v/65536)**3 for v in prior['volume']],prior['mute'],sound_config))]})
   set_props(node,{'channelVolumes':[(v/65536)**3 for v in prior['volume']],'mute':prior['mute']})
  finally:restore_levels({name:prior})
 
@@ -185,13 +186,13 @@ def daemon():
    for name,record in list(owned.items()):
     node=current.get(name);sink=next((s for s in items if s['name']==name),None)
     if not node or serial(node)!=record['serial']:owned.pop(name,None)
-    elif name not in wanted or record['curve']!=config.get('curve','boost'):
+    elif name not in wanted or record['curve']!=config.get('curve','boost') or record.get('sound')!=sound.normalize(config.get('sound')):
      if sink:detach(node,sink)
      owned.pop(name,None)
    for sink in items:
     name=sink['name'];node=current.get(name)
     if name not in wanted or name in owned or not node:continue
-    try:attach(node,sink,config.get('curve','boost'),owned)
+    try:attach(node,sink,config.get('curve','boost'),owned,config.get('sound'))
     except b.BridgeError as e:
      errors.append(str(e))
      # Keep ownership after a partial attachment until removal succeeds.
@@ -240,12 +241,15 @@ def configure(key,value):
  config=settings()
  if key=='target' and value!='default' and value not in {s['name'] for s in candidates(b.sinks())}:raise b.BridgeError('Saída estéreo indisponível.')
  if key=='curve' and value not in ['normal','boost']:raise b.BridgeError('Curva inválida.')
+ if key=='sound':value=sound.normalize(value)
  previous=config.copy();levels={};converted={}
- if key=='curve' and config.get('enabled'):
+ if key in ['curve','sound'] and config.get('enabled'):
   items=candidates(b.sinks())
   for sink in items:
    if sink['name'] not in selected_names(config,items):continue
    levels[sink['name']]={'volume':raw_levels(sink),'mute':sink['mute']}
+   if key=='sound':
+    converted[sink['name']]=levels[sink['name']].copy();continue
    p=b.inverse_percent(b.equivalent_percent(b.percent_of(sink),config.get('curve','boost')),value)
    values=raw_levels(sink);largest=max(values) or 1
    converted[sink['name']]={'volume':[round(p*65536/100*v/largest) for v in values],'mute':sink['mute']}
@@ -279,6 +283,10 @@ def migration_percent(version,curve,value):
  elif version=='0.2.2':equivalent=2*value
  else:equivalent=b.equivalent_percent(value,curve)
  return b.inverse_percent(equivalent,curve)
+
+def install_plugin(source,target):
+ # Never truncate a library that the audio server may still have mapped.
+ b.atomic(target,source.read_bytes(),source.stat().st_mode&0o777)
 
 def install(source):
  b.prerequisites()
@@ -315,11 +323,11 @@ def install(source):
    b.save(BASE,{'files':snapshots,'volumes':level_snapshot(),'default':default if default!=b.SINK else original.get('default')})
   if b.APP.exists():shutil.rmtree(b.APP)
   stage.rename(b.APP)
-  for stem,path in PLUGINS.items():path.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(b.APP/f'lib/liboab_{stem}.so',path)
+  for stem,path in PLUGINS.items():install_plugin(b.APP/f'lib/liboab_{stem}.so',path)
   paths=f'{b.HOME_DIR}/.ladspa:/usr/lib64/ladspa:/usr/lib/ladspa:/usr/lib/x86_64-linux-gnu'
   b.atomic(DROPIN,'# Managed by Open Audio Bridge native\n[Service]\nEnvironment="LADSPA_PATH='+paths+'"\n')
   selected=before.get('target','default') if is_native else 'default'
-  config={'routing':'native','target':selected,'curve':before.get('curve','boost'),'enabled':False,'volume_curve_version':3,'mixer_cards':{}}
+  config={'routing':'native','target':selected,'curve':before.get('curve','boost'),'enabled':False,'volume_curve_version':3,'mixer_cards':{},'sound':sound.normalize(before.get('sound'))}
   b.save(b.SETTINGS,config)
   executable=json.dumps(sys.executable);backend=json.dumps(str(b.APP/'native.py').replace('%','%%'))
   b.atomic(b.SERVICE,'[Unit]\nDescription=Open Audio Bridge native DSP\nAfter=pipewire.service pipewire-pulse.service wireplumber.service\nRequires=pipewire.service\n\n[Service]\nType=simple\nExecStart='+executable+' '+backend+' daemon\nExecStopPost='+executable+' '+backend+' recover\nRestart=on-failure\nRestartSec=1\nTimeoutStopSec=10\n\n[Install]\nWantedBy=default.target\n')
@@ -371,7 +379,7 @@ def install(source):
  finally:shutil.rmtree(stage,ignore_errors=True)
 
 def main():
- p=argparse.ArgumentParser();p.add_argument('command',choices=['install','enable','disable','uninstall','status','set-device','set-curve','volume','mute','daemon','recover']);p.add_argument('value',nargs='?');a=p.parse_args()
+ p=argparse.ArgumentParser();p.add_argument('command',choices=['install','enable','disable','uninstall','status','set-device','set-curve','set-sound','volume','mute','daemon','recover']);p.add_argument('value',nargs='?');a=p.parse_args()
  try:
   if a.command=='status':print(json.dumps(status(),ensure_ascii=False));return
   b.STATE.mkdir(parents=True,exist_ok=True)
@@ -380,6 +388,7 @@ def main():
    if a.command=='install':install(Path(__file__).resolve().parent)
    elif a.command=='set-device':configure('target',a.value)
    elif a.command=='set-curve':configure('curve',a.value)
+   elif a.command=='set-sound':configure('sound',json.loads(a.value))
    elif a.command=='volume':set_volume(a.value)
    elif a.command=='mute':set_mute(a.value=='1')
    else:globals()[a.command]()
