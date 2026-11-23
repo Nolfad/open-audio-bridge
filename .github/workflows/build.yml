@@ -91,10 +91,13 @@ jobs:
           if section is None:
               raise SystemExit('Falta a entrada desta versão no CHANGELOG.md')
           notes = '\n'.join(section.splitlines()[1:]).strip()
-          notes += f'\n\n## Instalar\n\nBaixe **open-audio-bridge-{current}.zip** nos arquivos abaixo, extraia e abra **Instalar.desktop**. Clique em **Instalar e ativar**.\n\n'
-          notes += 'Instalação na sua conta, sem sudo. Dependências: Python 3, PyQt5, gcc, PipeWire 1.6+, WirePlumber 0.5.15+, pipewire-pulse, pactl e systemd de usuário. O instalador compila os plugins no computador de destino. Validado em Tuxedo OS/KDE.\n\n'
-          notes += f'Para Tuxedo/Ubuntu/Debian com as versões de áudio exigidas, o instalador **open-audio-bridge-installer_{current}_all.deb** configura as dependências. Depois abra **Instalar ou atualizar Open Audio Bridge** no menu. O aplicativo funciona e se atualiza na sua conta; o pacote .deb é o instalador, não um repositório APT.\n\n'
-          notes += 'O arquivo SHA256SUMS permite conferir a integridade do ZIP. Prefira o ZIP do instalador aos arquivos automáticos “Source code” do GitHub.\n'
+          repo = os.environ['GITHUB_REPOSITORY']
+          deb_url = f'https://github.com/{repo}/releases/download/v{current}/open-audio-bridge-installer_{current}_all.deb'
+          notes += f'\n\n## Instalar com um único arquivo\n\n**[Baixar instalador .deb]({deb_url})** — para Tuxedo/Ubuntu/Debian compatíveis.\n\n'
+          notes += 'Baixe somente o `.deb`: ele já contém o programa. Dê dois cliques no arquivo e instale pelo gerenciador de programas. Depois abra **Instalar ou atualizar Open Audio Bridge** no menu e clique em **Instalar e ativar**. Não precisa baixar nem extrair o ZIP. O sistema pode baixar dependências e pedir a senha administrativa.\n\n'
+          notes += 'Exige PipeWire 1.6+ e WirePlumber 0.5.15+. O aplicativo funciona e se atualiza na sua conta; o pacote .deb é o instalador, não um repositório APT. Validado em Tuxedo OS/KDE.\n\n'
+          notes += f'### Alternativa: ZIP\n\nBaixe **open-audio-bridge-{current}.zip**, extraia e abra **Instalar.desktop**. Clique em **Instalar e ativar**. Essa opção instala na sua conta, sem sudo, e exige as dependências já instaladas: Python 3, PyQt5, gcc, cabeçalhos de desenvolvimento da libc, PipeWire 1.6+, WirePlumber 0.5.15+, pipewire-pulse, pactl e systemd de usuário.\n\n'
+          notes += 'O arquivo SHA256SUMS permite conferir a integridade do .deb e do ZIP. Os arquivos automáticos “Source code” do GitHub são para desenvolvimento.\n'
           Path('release-notes.md').write_text(notes, encoding='utf-8')
           PY
       - name: Criar release com instalador e checksum
