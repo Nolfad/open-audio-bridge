@@ -28,6 +28,18 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y gcc python3 python3-pyqt5
+      - name: Conferir versão da tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          /usr/bin/python3 - <<'PY'
+          import os
+          from tools.build import version
+          expected = 'v' + version()
+          if os.environ['RELEASE_TAG'] != expected:
+              raise SystemExit(f'A tag deve ser {expected}, conforme bridge.py')
+          PY
       - name: Compilar, testar e gerar instalador
         run: /usr/bin/python3 tools/build.py
       - name: Disponibilizar instalador e checksum
@@ -39,3 +51,54 @@ jobs:
             dist/SHA256SUMS
           if-no-files-found: error
           retention-days: 30
+
+  release:
+    name: Publicar release
+    needs: build
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Baixar o pacote aprovado nos testes
+        run: |
+          gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            --name "open-audio-bridge-linux-$GITHUB_RUN_NUMBER" --dir dist
+          cd dist
+          sha256sum -c SHA256SUMS
+      - name: Preparar notas da versão
+        run: |
+          /usr/bin/python3 - <<'PY'
+          import os
+          from pathlib import Path
+          from tools.build import version
+          current = version()
+          if os.environ['RELEASE_TAG'] != 'v' + current:
+              raise SystemExit('Tag e versão do pacote não correspondem')
+          heading = '# ' + current + ' — '
+          sections = Path('CHANGELOG.md').read_text(encoding='utf-8').split('\n# ')
+          section = next((s if s.startswith('# ') else '# ' + s for s in sections
+                          if (s if s.startswith('# ') else '# ' + s).startswith(heading)), None)
+          if section is None:
+              raise SystemExit('Falta a entrada desta versão no CHANGELOG.md')
+          notes = '\n'.join(section.splitlines()[1:]).strip()
+          notes += f'\n\n## Instalar\n\nBaixe **open-audio-bridge-{current}.zip** nos arquivos abaixo, extraia e abra **Instalar.desktop**. Clique em **Instalar e ativar**.\n\n'
+          notes += 'Instalação na sua conta, sem sudo. Dependências: Python 3, PyQt5, gcc, PipeWire, pipewire-pulse, pactl e systemd de usuário. O instalador compila os plugins no computador de destino. Validado em Tuxedo OS/KDE.\n\n'
+          notes += 'O arquivo SHA256SUMS permite conferir a integridade do ZIP. Prefira o ZIP do instalador aos arquivos automáticos “Source code” do GitHub.\n'
+          Path('release-notes.md').write_text(notes, encoding='utf-8')
+          PY
+      - name: Criar release com instalador e checksum
+        run: |
+          gh release create "$RELEASE_TAG" \
+            "dist/open-audio-bridge-${RELEASE_TAG#v}.zip" dist/SHA256SUMS \
+            --verify-tag --draft --title "Open Audio Bridge $RELEASE_TAG" \
+            --notes-file release-notes.md
+          gh release edit "$RELEASE_TAG" --draft=false

@@ -4,9 +4,11 @@ Controle de volume integrado ao KDE, com instalação gráfica e restauração d
 
 [![Build Linux](https://github.com/Nolfad/open-audio-bridge/actions/workflows/build.yml/badge.svg)](https://github.com/Nolfad/open-audio-bridge/actions/workflows/build.yml)
 
-## Baixar um build
+## Baixar e instalar
 
-Abra [Actions → Build Linux](https://github.com/Nolfad/open-audio-bridge/actions/workflows/build.yml), selecione uma execução concluída com sucesso e baixe o arquivo em **Artifacts** (é necessário entrar no GitHub). Extraia o download para encontrar o ZIP de instalação e `SHA256SUMS`. Os artefatos ficam disponíveis por 30 dias; uma nova execução pode ser iniciada pelo botão **Run workflow**.
+Baixe o ZIP do instalador na [última release](https://github.com/Nolfad/open-audio-bridge/releases/latest). Em **Assets**, escolha **open-audio-bridge-0.2.3.zip**, extraia e siga os passos abaixo. O download é público, sem necessidade de entrar no GitHub. O arquivo `SHA256SUMS` permite conferir a integridade do pacote.
+
+Para testar alterações ainda não lançadas, há pacotes temporários em [Actions → Build Linux](https://github.com/Nolfad/open-audio-bridge/actions/workflows/build.yml), na seção **Artifacts** de cada execução aprovada. Esses arquivos exigem login e ficam disponíveis por 30 dias.
 
 ## Instalar
 
@@ -86,3 +88,9 @@ sha256sum -c SHA256SUMS
 O script compila os dois plugins com avisos tratados como erros e executa os testes em uma cópia temporária. Só gera `dist/open-audio-bridge-0.2.3.zip` e `dist/SHA256SUMS` se tudo passar. O pacote preserva a permissão de execução do lançador e não inclui configurações pessoais, bibliotecas compiladas ou caches. A mesma fonte gera o mesmo ZIP.
 
 O GitHub Actions executa esse processo em Ubuntu 24.04 a cada push, pull request ou execução manual. Os testes não precisam de placa de som e não alteram o áudio da máquina. A validação do CI cobre o processamento e as simulações de configuração/interface; integração com o servidor de áudio e dispositivos reais continua sendo uma verificação local.
+
+### Publicar uma versão
+
+Atualize `VERSION` em `bridge.py`, o `CHANGELOG.md` e os exemplos do README. Envie o commit e uma tag no formato `vX.Y.Z` correspondente à versão. O workflow confere a tag, compila e testa o pacote e, somente após o sucesso, cria uma release pública com o instalador e `SHA256SUMS`. Pushes comuns continuam gerando apenas builds de desenvolvimento.
+
+O workflow prepara a release como rascunho antes de publicá-la. Se uma publicação falhar e deixar um rascunho, confira o erro e remova somente esse rascunho antes de executar novamente; releases existentes não são sobrescritas automaticamente.
