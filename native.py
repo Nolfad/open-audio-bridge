@@ -17,6 +17,32 @@ MARKER='# Managed by Open Audio Bridge native'
 ACP_PATHS=Path(os.environ.get('XDG_CONFIG_HOME',str(b.HOME_DIR/'.config')))/'alsa-card-profile/mixer/paths'
 
 def settings():return b.read(b.SETTINGS,{})
+def sync_startup():
+ config=settings();startup=config.get('autostart',True)
+ b.atomic(b.AUTOSTART,b.desktop_text(True)+('' if startup else 'Hidden=true\n'))
+ b.run(['systemctl','--user','enable' if startup and config.get('enabled',False) else 'disable','open-audio-bridge'],timeout=20)
+
+def set_startup(enabled):
+ if type(enabled) is not bool:raise ValueError('Preferência de inicialização inválida.')
+ if not BASE.exists():raise b.BridgeError('Instale o Open Audio Bridge primeiro.')
+ previous=settings();desktop=b.snapshot([b.AUTOSTART])
+ try:
+  b.save(b.SETTINGS,dict(previous,autostart=enabled));sync_startup()
+ except Exception:
+  b.save(b.SETTINGS,previous)
+  try:sync_startup()
+  finally:b.restore(desktop)
+  raise
+
+def resume():
+ if BASE.exists() and settings().get('enabled',False) and b.run(['systemctl','--user','is-active','open-audio-bridge'],check=False).returncode:enable()
+
+def finish_install(before,running,preserve_enabled):
+ desired=before.get('enabled',True) if preserve_enabled else True
+ b.save(b.SETTINGS,dict(settings(),enabled=desired))
+ if desired and (not preserve_enabled or running):enable()
+ else:sync_startup()
+
 def target_name(config,default):return default if config.get('target','default')=='default' else config['target']
 def candidates(items):return [s for s in items if s['name'].startswith(('alsa_output.','bluez_output.')) and len(s.get('volume',{}))==2]
 def selected_names(config,items):return {s['name'] for s in items if config.get('target','default')=='default' or config['target']==s['name']}
@@ -62,8 +88,8 @@ def status():
  try:
   config=settings();items=candidates(b.sinks());default=b.default_sink();target=target_name(config,default)
   sink=next((s for s in items if s['name']==target),None);ready=b.read(READY,{})
-  return {'installed':config.get('routing')=='native','routing':'native','version':b.VERSION,'sound':sound.normalize(config.get('sound')),'updates':updater.status(),'curve':config.get('curve','boost'),'enabled':config.get('enabled',False),'target':config.get('target','default'),'resolved_target':target,'resolved_description':b.device_description(sink) if sink else target,'default':default,'connected':sink is not None,'active':bool(config.get('enabled') and target in ready.get('attached',[])),'volume':round(b.percent_of(sink),1) if sink else 0,'mute':sink['mute'] if sink else False,'devices':[{'name':s['name'],'description':b.device_description(s)} for s in items],'error':ready.get('error','')}
- except b.BridgeError as e:return {'routing':'native','installed':BASE.exists(),'enabled':False,'active':False,'devices':[],'error':str(e),'version':b.VERSION}
+  return {'installed':config.get('routing')=='native','routing':'native','version':b.VERSION,'sound':sound.normalize(config.get('sound')),'updates':updater.status(),'autostart':config.get('autostart',True),'curve':config.get('curve','boost'),'enabled':config.get('enabled',False),'target':config.get('target','default'),'resolved_target':target,'resolved_description':b.device_description(sink) if sink else target,'default':default,'connected':sink is not None,'active':bool(config.get('enabled') and target in ready.get('attached',[])),'volume':round(b.percent_of(sink),1) if sink else 0,'mute':sink['mute'] if sink else False,'devices':[{'name':s['name'],'description':b.device_description(s)} for s in items],'error':ready.get('error','')}
+ except b.BridgeError as e:return {'routing':'native','installed':BASE.exists(),'autostart':settings().get('autostart',True),'enabled':False,'active':False,'devices':[],'error':str(e),'version':b.VERSION}
 
 def attach(node,sink,curve,owned,sound_config=None):
  name=sink['name']
@@ -223,7 +249,7 @@ def enable():
  try:
   config=dict(previous,enabled=True);b.save(b.SETTINGS,config)
   prepare_mixers();READY.unlink(missing_ok=True)
-  b.run(['systemctl','--user','enable','open-audio-bridge'],timeout=20)
+  sync_startup()
   b.run(['systemctl','--user','restart','open-audio-bridge'],timeout=20);wait_ready()
  except Exception:
   b.run(['systemctl','--user','disable','--now','open-audio-bridge'],check=False,timeout=20)
@@ -344,7 +370,7 @@ def install(source,preserve_enabled=False,scheduled=False):
   paths=f'{b.HOME_DIR}/.ladspa:/usr/lib64/ladspa:/usr/lib/ladspa:/usr/lib/x86_64-linux-gnu'
   b.atomic(DROPIN,'# Managed by Open Audio Bridge native\n[Service]\nEnvironment="LADSPA_PATH='+paths+'"\n')
   selected=before.get('target','default') if is_native else 'default'
-  config={'routing':'native','target':selected,'curve':before.get('curve','boost'),'enabled':False,'volume_curve_version':3,'mixer_cards':{},'sound':sound.normalize(before.get('sound'))}
+  config={'routing':'native','target':selected,'curve':before.get('curve','boost'),'enabled':False,'autostart':before.get('autostart',True),'volume_curve_version':3,'mixer_cards':{},'sound':sound.normalize(before.get('sound'))}
   b.save(b.SETTINGS,config)
   executable=json.dumps(sys.executable);backend=json.dumps(str(b.APP/'native.py').replace('%','%%'))
   b.atomic(b.SERVICE,'[Unit]\nDescription=Open Audio Bridge native DSP\nAfter=pipewire.service pipewire-pulse.service wireplumber.service\nRequires=pipewire.service\n\n[Service]\nType=simple\nExecStart='+executable+' '+backend+' daemon\nExecStopPost='+executable+' '+backend+' recover\nRestart=on-failure\nRestartSec=1\nTimeoutStopSec=10\n\n[Install]\nWantedBy=default.target\n')
@@ -367,7 +393,7 @@ def install(source,preserve_enabled=False,scheduled=False):
    if target in current:
     p=min(50,migration_percent(version,config['curve'],old));current[target]={'volume':[round(p*65536/100*x) for x in before.get('balance',[1,1])],'mute':before.get('mute',False)}
   restore_levels(current)
-  if not preserve_enabled or before.get('enabled',True):enable()
+  finish_install(before,running,preserve_enabled)
   updater.setup()
   destination=default if default!=b.SINK else before.get('target',b.default_sink())
   if b.sink_by_name(destination):
@@ -384,8 +410,10 @@ def install(source,preserve_enabled=False,scheduled=False):
   if (backup/'app').exists():shutil.copytree(backup/'app',b.APP)
   restore_state(backup/'state')
   b.run(['systemctl','--user','daemon-reload']);updater.sync_schedule();restart_policy(levels)
+  if is_native:sync_startup()
   if running:
-   b.run(['systemctl','--user','enable','--now','open-audio-bridge'],timeout=20)
+   b.run(['systemctl','--user','start','open-audio-bridge'],timeout=20)
+   if not is_native:b.run(['systemctl','--user','enable','open-audio-bridge'],timeout=20)
    pid=int(b.run(['systemctl','--user','show','open-audio-bridge','--property=MainPID','--value']).stdout.strip())
    for _ in range(100):
     ready=b.read(READY if is_native else b.STATE/'ready.json',{})
@@ -396,7 +424,7 @@ def install(source,preserve_enabled=False,scheduled=False):
  finally:shutil.rmtree(stage,ignore_errors=True)
 
 def main():
- p=argparse.ArgumentParser();p.add_argument('command',choices=['install','install-update','update','update-auto','enable','disable','uninstall','status','set-device','set-curve','set-sound','volume','mute','daemon','recover']);p.add_argument('value',nargs='?');a=p.parse_args()
+ p=argparse.ArgumentParser();p.add_argument('command',choices=['install','install-update','update','update-auto','set-startup','resume','enable','disable','uninstall','status','set-device','set-curve','set-sound','volume','mute','daemon','recover']);p.add_argument('value',nargs='?');a=p.parse_args()
  try:
   if a.command=='status':print(json.dumps(status(),ensure_ascii=False));return
   if a.command=='update':print(json.dumps(updater.check_apply(manual=True),ensure_ascii=False));return
@@ -410,6 +438,9 @@ def main():
     if updater.version_tuple(b.VERSION)<=updater.version_tuple(updater.file_version(b.APP/'bridge.py')):print('A instalação já está atualizada.');return
     if a.value=='scheduled' and (not updater.automatic() or updater.playback_busy()):print('Atualização adiada até uma pausa na reprodução.');sys.exit(75)
     install(Path(__file__).resolve().parent,preserve_enabled=True,scheduled=a.value=='scheduled')
+   elif a.command=='set-startup':
+    if a.value not in ['0','1']:raise ValueError('Use 0 ou 1 para a inicialização automática.')
+    set_startup(a.value=='1')
    elif a.command=='set-device':configure('target',a.value)
    elif a.command=='set-curve':configure('curve',a.value)
    elif a.command=='set-sound':configure('sound',json.loads(a.value))

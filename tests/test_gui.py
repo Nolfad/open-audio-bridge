@@ -14,7 +14,7 @@ class GuiTests(unittest.TestCase):
   tmp=tempfile.TemporaryDirectory();self.addCleanup(tmp.cleanup);root=Path(tmp.name)
   status=dict(active=True,enabled=True,connected=True,volume=37,mute=False,curve='boost',target='default',resolved_target='alsa_output.speakers',resolved_description='Alto-falantes',routing='native',devices=[dict(name='alsa_output.speakers',description='Alto-falantes')])
   status.update(changes);state=root/'state.json';state.write_text(json.dumps(status))
-  (root/'bridge.py').write_text('''import sys,json\nfrom pathlib import Path\np=Path(__file__).with_name('state.json')\ns=json.loads(p.read_text())\nif sys.argv[1]=='status':print(json.dumps(s))\nelif sys.argv[1]=='set-device':\n s['target']=sys.argv[2];p.write_text(json.dumps(s))\nelif sys.argv[1]=='volume':\n s['volume']=int(sys.argv[2]);p.write_text(json.dumps(s))\nelif sys.argv[1]=='set-sound':\n s['sound']=json.loads(sys.argv[2]);p.write_text(json.dumps(s))\nelif sys.argv[1]=='update-auto':\n s.setdefault('updates',{})['automatic']=sys.argv[2]=='1';p.write_text(json.dumps(s))\nelif sys.argv[1]=='update':\n s['manual_update']=True;s.setdefault('updates',{}).update(message='Atualização aplicada.',state='updated',last_checked=1700000000);p.write_text(json.dumps(s))\nelse:raise SystemExit(2)\n''')
+  (root/'bridge.py').write_text('''import sys,json\nfrom pathlib import Path\np=Path(__file__).with_name('state.json')\ns=json.loads(p.read_text())\nif sys.argv[1]=='status':print(json.dumps(s))\nelif sys.argv[1]=='set-device':\n s['target']=sys.argv[2];p.write_text(json.dumps(s))\nelif sys.argv[1]=='volume':\n s['volume']=int(sys.argv[2]);p.write_text(json.dumps(s))\nelif sys.argv[1]=='set-sound':\n s['sound']=json.loads(sys.argv[2]);p.write_text(json.dumps(s))\nelif sys.argv[1]=='set-startup':\n s['autostart']=sys.argv[2]=='1';p.write_text(json.dumps(s))\nelif sys.argv[1]=='update-auto':\n s.setdefault('updates',{})['automatic']=sys.argv[2]=='1';p.write_text(json.dumps(s))\nelif sys.argv[1]=='update':\n s['manual_update']=True;s.setdefault('updates',{}).update(message='Atualização aplicada.',state='updated',last_checked=1700000000);p.write_text(json.dumps(s))\nelse:raise SystemExit(2)\n''')
   patch=mock.patch.object(gui,'ROOT',root);patch.start();self.addCleanup(patch.stop)
   window=gui.Window();window.timer.stop()
   def cleanup():
@@ -24,6 +24,20 @@ class GuiTests(unittest.TestCase):
    window.deleteLater();app.processEvents()
   self.addCleanup(cleanup);wait(.15)
   return window,state
+ def test_settings_keep_uninstall_out_of_main_page_and_persist_startup(self):
+  window,state=self.native_window(autostart=True)
+  labels=[window.tabs.tabText(i) for i in range(window.tabs.count())]
+  self.assertIn('Configurações',labels)
+  self.assertIs(window.remove.parentWidget(),window.settings_page)
+  window.startup.setChecked(False);wait(.3)
+  saved=json.loads(state.read_text())
+  self.assertFalse(saved['autostart']);self.assertTrue(saved['active']);self.assertEqual(saved['volume'],37)
+  window.refresh();wait(.2);self.assertFalse(window.startup.isChecked())
+  window.startup.setChecked(True);wait(.3);self.assertTrue(json.loads(state.read_text())['autostart'])
+ def test_startup_status_sync_does_not_reset_disabled_preference(self):
+  window,state=self.native_window(autostart=False)
+  self.assertFalse(window.startup.isChecked());self.assertFalse(json.loads(state.read_text())['autostart'])
+
  def test_system_default_stays_selectable_and_follows_native_device(self):
   window,state=self.native_window()
   self.assertEqual(window.device.itemData(0),'default')
@@ -156,6 +170,7 @@ class GuiTests(unittest.TestCase):
    self.assertFalse(server.isListening())
    self.assertEqual(program,sys.executable)
    self.assertIn('--tray',args)
+   self.assertIn('--no-resume',args)
    probe=gui.QtNetwork.QLocalServer();self.assertTrue(probe.listen(name));probe.close();gui.QtNetwork.QLocalServer.removeServer(name)
    return (True,12345)
   with mock.patch.object(QtCore.QProcess,'startDetached',side_effect=replacement),mock.patch.object(app,'quit') as quit_app:

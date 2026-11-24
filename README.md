@@ -1,4 +1,4 @@
-# Open Audio Bridge 0.5.0
+# Open Audio Bridge 0.5.1
 
 Controle de volume integrado ao KDE, com instalação gráfica e restauração do áudio anterior. Validado em Tuxedo OS, com PipeWire 1.6.8 e WirePlumber 0.5.15.
 
@@ -6,7 +6,7 @@ Controle de volume integrado ao KDE, com instalação gráfica e restauração d
 
 ## Baixar e instalar
 
-**Tuxedo OS, Ubuntu ou Debian compatível: [baixar instalador .deb — arquivo único](https://github.com/Nolfad/open-audio-bridge/releases/download/v0.5.0/open-audio-bridge-installer_0.5.0_all.deb).**
+**Tuxedo OS, Ubuntu ou Debian compatível: [baixar instalador .deb — arquivo único](https://github.com/Nolfad/open-audio-bridge/releases/download/v0.5.1/open-audio-bridge-installer_0.5.1_all.deb).**
 
 Baixe somente o `.deb`: ele já contém o programa. Dê dois cliques no arquivo para abrir o gerenciador de programas e instalar. Depois abra **Instalar ou atualizar Open Audio Bridge** no menu e clique em **Instalar e ativar**. Não precisa baixar nem extrair o ZIP. O sistema pode baixar dependências e pedir a senha administrativa durante a instalação do pacote.
 
@@ -16,7 +16,7 @@ Para testar alterações ainda não lançadas, há pacotes temporários em [Acti
 
 ## Instalar com .deb
 
-1. Baixe **open-audio-bridge-installer_0.5.0_all.deb** e abra no gerenciador de programas. Ele instala as dependências; essa etapa usa a autorização administrativa normal do sistema.
+1. Baixe **open-audio-bridge-installer_0.5.1_all.deb** e abra no gerenciador de programas. Ele instala as dependências; essa etapa usa a autorização administrativa normal do sistema.
 2. Abra **Instalar ou atualizar Open Audio Bridge** no menu e clique em **Instalar e ativar**.
 3. Depois use **Open Audio Bridge** no menu ou o ícone da bandeja.
 
@@ -65,6 +65,14 @@ O efeito é inserido dentro das saídas reais estéreo. No modo automático, as 
 
 A integração local foi validada com saídas ALSA USB (HyperX Cloud Flight) e HDMI. Saídas surround e controles de volume por hardware de Bluetooth não são suportados nesta versão. Os microfones não recebem processamento nem alterações de ganho.
 
+## Configurações e inicialização
+
+A aba **Configurações** reúne **Iniciar com o sistema** e **Desinstalar**.
+
+**Iniciar com o sistema** controla a abertura do ícone da bandeja e a inicialização do processamento ao entrar na sua conta. O processamento só inicia se estiver ativado. Desmarcar essa opção não interrompe o áudio atual: a mudança vale para a próxima sessão. Para parar o efeito agora, use **Desativar**.
+
+Você pode abrir o programa pelo menu quando quiser, mesmo com a inicialização automática desligada. A abertura manual retoma o processamento que estava ativado, sem ligar novamente a inicialização automática. Atualizações preservam essa preferência e não iniciam um processamento que estava parado. A busca de atualizações tem sua própria opção na aba **Atualizações**.
+
 ## Ganho e equalizador independentes
 
 A aba **Volume e ganho** reúne o volume do KDE, a curva de volume e o **Reforço antes da proteção**, de 0 a 18 dB. O valor inicial de 18 dB preserva o som das versões anteriores. A pré-equalização leve continua nessa etapa, seguida pela compressão e proteção de picos.
@@ -79,7 +87,7 @@ Ao atualizar, o equalizador começa desligado para manter o som anterior. Se a j
 
 ## Desinstalar
 
-Clique em **Desinstalar** na janela. O programa restaura os arquivos, a saída padrão e os volumes/mudo preservados na instalação. Os volumes são restaurados nas saídas conectadas. Arquivos anteriores e cópias de segurança das atualizações ficam registrados em `~/.local/state/open-audio-bridge-desktop` e `~/.local/state/open-audio-bridge-upgrades`.
+Na aba **Configurações**, clique em **Desinstalar**. O programa restaura os arquivos, a saída padrão e os volumes/mudo preservados na instalação. Os volumes são restaurados nas saídas conectadas. Arquivos anteriores e cópias de segurança das atualizações ficam registrados em `~/.local/state/open-audio-bridge-desktop` e `~/.local/state/open-audio-bridge-upgrades`.
 
 Não use os comandos de instalação da versão 0.1 enquanto a versão gráfica está ativa: eles poderiam duplicar o processamento. O comando antigo foi protegido para informar esse conflito.
 
@@ -130,7 +138,7 @@ cd dist
 sha256sum -c SHA256SUMS
 ```
 
-O script compila os dois plugins com avisos tratados como erros e executa os testes em uma cópia temporária. Só gera `dist/open-audio-bridge-0.5.0.zip`, `dist/open-audio-bridge-installer_0.5.0_all.deb` e `dist/SHA256SUMS` se tudo passar. O build requer também `dpkg-deb` (pacote `dpkg`). O pacote preserva a permissão de execução do lançador e não inclui configurações pessoais, bibliotecas compiladas ou caches. A mesma fonte gera o mesmo ZIP.
+O script compila os dois plugins com avisos tratados como erros e executa os testes em uma cópia temporária. Só gera `dist/open-audio-bridge-0.5.1.zip`, `dist/open-audio-bridge-installer_0.5.1_all.deb` e `dist/SHA256SUMS` se tudo passar. O build requer também `dpkg-deb` (pacote `dpkg`). O pacote preserva a permissão de execução do lançador e não inclui configurações pessoais, bibliotecas compiladas ou caches. A mesma fonte gera o mesmo ZIP.
 
 O GitHub Actions executa esse processo em Ubuntu 24.04 a cada push, pull request ou execução manual. Os testes não precisam de placa de som e não alteram o áudio da máquina. A validação do CI cobre o processamento e as simulações de configuração/interface; integração com o servidor de áudio e dispositivos reais continua sendo uma verificação local.
 

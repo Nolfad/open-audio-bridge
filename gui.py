@@ -25,7 +25,7 @@ class Window(W.QMainWindow):
   drive_row=W.QFormLayout();self.drive=W.QDoubleSpinBox();self.drive.setRange(0,18);self.drive.setSuffix(' dB');self.drive.setDecimals(1);self.drive.setValue(18);drive_row.addRow('Reforço antes da proteção',self.drive);layout.addLayout(drive_row)
   drive_note=W.QLabel('A pré-equalização e a proteção de picos acompanham o ganho. Os presets de timbre ficam na aba Equalizador e não alteram este ajuste.');drive_note.setWordWrap(True);layout.addWidget(drive_note)
   note=W.QLabel('Este é o mesmo volume da saída no KDE, sem controle ou saída extra.\nPadrão do sistema acompanha a saída escolhida no KDE. Uma saída fixa recebe o efeito sem mudar a saída padrão.\nFechar esta janela mantém o ícone na bandeja e o áudio ativo.');note.setWordWrap(True);note.setStyleSheet('color:#888;');layout.addWidget(note)
-  layout.addStretch();layout=outer;self.build_equalizer();self.build_updates();buttons=W.QHBoxLayout();self.toggle=W.QPushButton('Ativar');self.refresh_button=W.QPushButton('Atualizar saídas');self.remove=W.QPushButton('Desinstalar');buttons.addWidget(self.toggle);buttons.addWidget(self.refresh_button);buttons.addStretch();buttons.addWidget(self.remove);layout.addLayout(buttons)
+  layout.addStretch();layout=outer;self.build_equalizer();self.build_updates();self.build_settings();buttons=W.QHBoxLayout();self.toggle=W.QPushButton('Ativar');self.refresh_button=W.QPushButton('Atualizar saídas');buttons.addWidget(self.toggle);buttons.addWidget(self.refresh_button);buttons.addStretch();layout.addLayout(buttons)
   self.action=QtCore.QProcess(self);self.action.finished.connect(self.action_done);self.action.errorOccurred.connect(self.process_error)
   self.reader=QtCore.QProcess(self);self.reader.finished.connect(self.status_done)
   self.timer=QtCore.QTimer(self);self.timer.timeout.connect(self.refresh);self.timer.start(1500)
@@ -41,6 +41,15 @@ class Window(W.QMainWindow):
   self.tray=W.QSystemTrayIcon(self.windowIcon(),self);menu=W.QMenu();menu.addAction('Abrir controle',self.show_window);menu.addAction('Sair da interface',self.quit_ui);self.tray.setContextMenu(menu);self.tray.activated.connect(lambda reason:self.show_window() if reason==W.QSystemTrayIcon.Trigger else None);self.tray.setToolTip('Open Audio Bridge')
   if self.use_tray:self.tray.show()
   self.refresh()
+ def build_settings(self):
+  self.settings_page=W.QWidget();layout=W.QVBoxLayout(self.settings_page);layout.setSpacing(16)
+  self.startup=W.QCheckBox('Iniciar com o sistema');self.startup.setChecked(True);layout.addWidget(self.startup)
+  note=W.QLabel('Inicia o ícone na bandeja ao entrar na sua conta e retoma o processamento se ele estiver ativado. Desmarcar vale para a próxima sessão e não interrompe o áudio atual. Você pode abrir o programa pelo menu quando quiser.');note.setWordWrap(True);layout.addWidget(note)
+  layout.addStretch()
+  remove_note=W.QLabel('Desinstalar remove o Open Audio Bridge da sua conta e restaura a configuração de áudio anterior.');remove_note.setWordWrap(True);layout.addWidget(remove_note)
+  self.remove=W.QPushButton('Desinstalar');layout.addWidget(self.remove)
+  self.tabs.addTab(self.settings_page,'Configurações')
+  self.startup.toggled.connect(lambda enabled:self.execute('set-startup','1' if enabled else '0'))
  def build_updates(self):
   page=W.QWidget();layout=W.QVBoxLayout(page);layout.setSpacing(16)
   self.update_version=W.QLabel('Interface em execução: '+VERSION);layout.addWidget(self.update_version)
@@ -119,7 +128,7 @@ class Window(W.QMainWindow):
   W.QApplication.instance().quit()
  def show_window(self):self.showNormal();self.raise_();self.activateWindow()
  def controls(self,enabled):
-  for x in [self.device,self.curve,self.slider,self.mute,self.toggle,self.remove,self.drive,self.eq_enabled,self.eq_preset,self.update_auto,self.update_button]:x.setEnabled(enabled)
+  for x in [self.device,self.curve,self.slider,self.mute,self.toggle,self.remove,self.drive,self.eq_enabled,self.eq_preset,self.update_auto,self.update_button,self.startup]:x.setEnabled(enabled)
   for slider in self.eq_sliders:slider.setEnabled(enabled and self.eq_enabled.isChecked())
  def volume_changed(self,value):
   self.number.setText(f'{value}%');self.volume_timer.start(180)
@@ -147,6 +156,7 @@ class Window(W.QMainWindow):
   try:data=json.loads(bytes(self.reader.readAllStandardOutput()))
   except (ValueError,UnicodeError):return
   self.last=data;self.sync_updates(data)
+  self.startup.blockSignals(True);self.startup.setChecked(data.get('autostart',True));self.startup.blockSignals(False)
   if data.get('error'):self.status_label.setText('Áudio indisponível: '+data['error']);return
   target=data.get('target') or 'default';description=data.get('resolved_description') or data.get('resolved_target') or target
   destination=('Padrão do sistema' if target=='default' else 'Saída fixa')+(' — '+description if data.get('connected') else ' — saída indisponível')
@@ -175,7 +185,7 @@ def restart_interface(window,app,server,server_name,visible):
  # Release the singleton before launching, or the new process would show this old one.
  if window.pending_changes():window.restart_pending=False;return
  if server:server.close();QtNetwork.QLocalServer.removeServer(server_name)
- arguments=[str(ROOT/'gui.py')]+([] if visible else ['--tray'])
+ arguments=[str(ROOT/'gui.py'),'--no-resume']+([] if visible else ['--tray'])
  started=QtCore.QProcess.startDetached(sys.executable,arguments,str(ROOT))
  if isinstance(started,tuple):started=started[0]
  if not started:
@@ -196,6 +206,7 @@ def main():
   QtNetwork.QLocalServer.removeServer(server_name)
   server=QtNetwork.QLocalServer();server.listen(server_name)
  window=Window()
+ if '--screenshot' not in sys.argv and '--no-resume' not in sys.argv:window.execute('resume')
  if '--screenshot' not in sys.argv:window.restart_requested.connect(lambda visible:restart_interface(window,app,server,server_name,visible))
  if server:
   def incoming():

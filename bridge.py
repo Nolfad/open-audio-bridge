@@ -2,7 +2,7 @@
 """Open Audio Bridge desktop lifecycle and PipeWire graph. No root required."""
 from pathlib import Path
 import argparse,base64,fcntl,json,math,os,shutil,signal,subprocess,sys,time,tempfile
-VERSION='0.5.0'
+VERSION='0.5.1'
 MAX_VOLUME=150
 ROOT=Path(__file__).resolve().parent
 HOME_DIR=Path.home()

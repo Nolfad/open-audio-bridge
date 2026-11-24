@@ -1,3 +1,10 @@
+# 0.5.1 — 24/11/2026
+
+- Nova aba Configurações, com o botão Desinstalar fora da área principal de controle do áudio.
+- Opção Iniciar com o sistema controla o ícone e o processamento na próxima sessão, sem interromper o áudio atual.
+- A preferência é preservada nas atualizações. Abrir pelo menu permite usar o programa manualmente sem reativar a inicialização automática.
+- Atualizações preservam também o processamento parado, evitando iniciar o áudio de quem optou por não abrir o programa na sessão.
+
 # 0.5.0 — 23/11/2026
 
 - Atualização automática pelas releases estáveis oficiais do GitHub, com conferência de versão e SHA256, extração segura e bloqueio de instalações simultâneas.
