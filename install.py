@@ -4,7 +4,7 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parent
 try:from PyQt5 import QtCore,QtWidgets as W
 except ImportError:
- message='Falta o componente gráfico python3-pyqt5. No Tuxedo/Ubuntu, instale python3-pyqt5 e gcc pelo gerenciador de programas.'
+ message='Falta o componente gráfico PyQt5. No Tuxedo/Ubuntu, instale python3-pyqt5 e gcc; no Arch Linux, python-pyqt5 e gcc pelo gerenciador de pacotes.'
  try:subprocess.run(['kdialog','--error',message])
  except OSError:print(message,file=sys.stderr)
  sys.exit(1)

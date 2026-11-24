@@ -1,14 +1,16 @@
-# Open Audio Bridge 0.5.1
+# Open Audio Bridge 0.5.2
 
-Controle de volume integrado ao KDE, com instalação gráfica e restauração do áudio anterior. Validado em Tuxedo OS, com PipeWire 1.6.8 e WirePlumber 0.5.15.
+Controle de volume integrado ao KDE, com instalação gráfica e restauração do áudio anterior. Validado em Tuxedo OS, com PipeWire 1.6.8 e WirePlumber 0.5.25.
 
 [![Build Linux](https://github.com/Nolfad/open-audio-bridge/actions/workflows/build.yml/badge.svg)](https://github.com/Nolfad/open-audio-bridge/actions/workflows/build.yml)
 
 ## Baixar e instalar
 
-**Tuxedo OS, Ubuntu ou Debian compatível: [baixar instalador .deb — arquivo único](https://github.com/Nolfad/open-audio-bridge/releases/download/v0.5.1/open-audio-bridge-installer_0.5.1_all.deb).**
+**Tuxedo OS, Ubuntu ou Debian compatível: [baixar instalador .deb — arquivo único](https://github.com/Nolfad/open-audio-bridge/releases/download/v0.5.2/open-audio-bridge-installer_0.5.2_all.deb).**
 
 Baixe somente o `.deb`: ele já contém o programa. Dê dois cliques no arquivo para abrir o gerenciador de programas e instalar. Depois abra **Instalar ou atualizar Open Audio Bridge** no menu e clique em **Instalar e ativar**. Não precisa baixar nem extrair o ZIP. O sistema pode baixar dependências e pedir a senha administrativa durante a instalação do pacote.
+
+**Arch Linux: [baixar pacote .pkg.tar.zst](https://github.com/Nolfad/open-audio-bridge/releases/download/v0.5.2/open-audio-bridge-installer-0.5.2-1-any.pkg.tar.zst).** Veja as instruções abaixo.
 
 A [última release](https://github.com/Nolfad/open-audio-bridge/releases/latest) também oferece o ZIP como alternativa. Os downloads são públicos, sem login no GitHub. O arquivo `SHA256SUMS` permite conferir a integridade dos pacotes.
 
@@ -16,13 +18,33 @@ Para testar alterações ainda não lançadas, há pacotes temporários em [Acti
 
 ## Instalar com .deb
 
-1. Baixe **open-audio-bridge-installer_0.5.1_all.deb** e abra no gerenciador de programas. Ele instala as dependências; essa etapa usa a autorização administrativa normal do sistema.
+1. Baixe **open-audio-bridge-installer_0.5.2_all.deb** e abra no gerenciador de programas. Ele instala as dependências; essa etapa usa a autorização administrativa normal do sistema.
 2. Abra **Instalar ou atualizar Open Audio Bridge** no menu e clique em **Instalar e ativar**.
 3. Depois use **Open Audio Bridge** no menu ou o ícone da bandeja.
 
 O pacote é um **instalador**, sem scripts que alterem o áudio ao instalar pelo APT. A aplicação e suas atualizações ficam na conta do usuário. A versão mostrada pelo gerenciador de pacotes é a do instalador; a versão do programa aparece na aba Atualizações. Este download não configura um repositório APT. Para remover tudo, desinstale primeiro pelo aplicativo e depois remova o pacote `open-audio-bridge-installer`. Remover apenas o pacote não apaga aplicativos pessoais ou backups.
 
-São necessários **PipeWire 1.6+ e WirePlumber 0.5.15+**. O .deb declara essas dependências e não tenta substituir o áudio de uma distribuição antiga ou adicionar repositórios externos.
+São necessários **PipeWire 1.6+ e WirePlumber 0.5.25+**. O .deb declara essas dependências e não tenta substituir o áudio de uma distribuição antiga ou adicionar repositórios externos.
+
+## Instalar no Arch Linux
+
+1. Baixe **open-audio-bridge-installer-0.5.2-1-any.pkg.tar.zst** da release.
+2. Na pasta onde baixou o arquivo, execute:
+
+   ```sh
+   sudo pacman -U ./open-audio-bridge-installer-0.5.2-1-any.pkg.tar.zst
+   ```
+
+3. Abra **Instalar ou atualizar Open Audio Bridge** no menu e clique em **Instalar e ativar**.
+4. Use **Open Audio Bridge** pelo menu ou pela bandeja normalmente.
+
+O pacman resolve as dependências dos repositórios configurados. Mantenha o Arch atualizado, sem atualizações parciais. São necessários PipeWire 1.6+, WirePlumber 0.5.15+, `pipewire-audio`, `pipewire-pulse`, `libpulse` (fornece `pactl`), Python 3.10+, `python-pyqt5`, `qt5-wayland`, `gcc`, `glibc` e `systemd`. O programa depende de uma sessão com PipeWire/WirePlumber: quem ainda usa o servidor PulseAudio precisa migrar o áudio antes. Não confirme remoções de componentes sem revisar a transação do pacman.
+
+O `.pkg.tar.zst` é um único arquivo instalável, sem extrair ZIP. Abrir com dois cliques depende de ter um gerenciador gráfico de pacotes associado; o comando acima funciona com o pacman padrão. O pacote instala apenas fontes e o iniciador, sem alterar o áudio das contas. Como no `.deb`, o aplicativo e suas atualizações ficam na sua conta. Uma instalação anterior gerenciada pode ser atualizada pelo instalador, sem desinstalar antes. Para remover tudo, use primeiro **Configurações → Desinstalar** no aplicativo e depois `sudo pacman -R open-audio-bridge-installer`.
+
+Para compilar o pacote em vez de baixar o pronto, instale `base-devel`, baixe o arquivo **PKGBUILD** da mesma release para uma pasta vazia, confira seu conteúdo e execute `makepkg -si` como usuário normal. Ele baixa o ZIP oficial, confere o SHA256, compila e testa antes de empacotar. Este pacote não foi publicado no AUR nem configura um repositório pacman.
+
+A construção, os testes e a instalação do pacote são verificados em um ambiente Arch no CI, incluindo a abertura da janela gráfica sem ativar o áudio. **Reprodução em hardware real no Arch ainda não foi validada.** Referências: [PKGBUILD/makepkg](https://man.archlinux.org/man/PKGBUILD.5.en), [pipewire-audio](https://archlinux.org/packages/extra/x86_64/pipewire-audio/), [WirePlumber](https://archlinux.org/packages/extra/x86_64/wireplumber/) e [libpulse/pactl](https://archlinux.org/packages/extra/x86_64/libpulse/files/).
 
 ## Instalar com ZIP
 
@@ -33,7 +55,7 @@ São necessários **PipeWire 1.6+ e WirePlumber 0.5.15+**. O .deb declara essas 
 
 A instalação fica na sua conta, sem sudo. A pasta extraída pode ser removida depois. Atualizações usam o mesmo instalador e preservam a configuração anterior. Na migração da saída virtual, o nível anterior é convertido para a nova escala. A primeira ativação limita o fone anteriormente escolhido a 50% e as demais saídas a 35%; depois você pode ajustar normalmente até 150%. Atualizações do modo nativo preservam os volumes dos dispositivos.
 
-Dependências: Python 3, PyQt5, gcc e cabeçalhos de desenvolvimento da libc, PipeWire 1.6+, WirePlumber 0.5.15+, pipewire-pulse, pw-cli, pw-dump e pactl (pacote pulseaudio-utils) e systemd de usuário. Se faltar algum componente, o instalador informa antes de alterar o áudio. O pacote inclui o código-fonte; o instalador compila os dois plugins para o computador de destino. Não é um executável independente de dependências.
+Dependências: Python 3, PyQt5, gcc e cabeçalhos de desenvolvimento da libc, PipeWire 1.6+, WirePlumber 0.5.25+, pipewire-pulse, pw-cli, pw-dump e pactl (pulseaudio-utils no Debian/Ubuntu ou libpulse no Arch) e systemd de usuário. Se faltar algum componente, o instalador informa antes de alterar o áudio. O pacote inclui o código-fonte; o instalador compila os dois plugins para o computador de destino. Não é um executável independente de dependências.
 
 ## Atualizações automáticas
 
@@ -138,12 +160,12 @@ cd dist
 sha256sum -c SHA256SUMS
 ```
 
-O script compila os dois plugins com avisos tratados como erros e executa os testes em uma cópia temporária. Só gera `dist/open-audio-bridge-0.5.1.zip`, `dist/open-audio-bridge-installer_0.5.1_all.deb` e `dist/SHA256SUMS` se tudo passar. O build requer também `dpkg-deb` (pacote `dpkg`). O pacote preserva a permissão de execução do lançador e não inclui configurações pessoais, bibliotecas compiladas ou caches. A mesma fonte gera o mesmo ZIP.
+O script compila os dois plugins com avisos tratados como erros e executa os testes em uma cópia temporária. Só gera `dist/open-audio-bridge-0.5.2.zip`, `dist/open-audio-bridge-installer_0.5.2_all.deb` e `dist/SHA256SUMS` se tudo passar. O build requer também `dpkg-deb` (pacote `dpkg`). O pacote preserva a permissão de execução do lançador e não inclui configurações pessoais, bibliotecas compiladas ou caches. A mesma fonte gera o mesmo ZIP. Também gera `dist/arch/PKGBUILD` com o SHA256 desse ZIP; em um Arch com `base-devel`, copie o ZIP para essa pasta e execute `makepkg -si` sem root para construir e instalar o pacote nativo.
 
-O GitHub Actions executa esse processo em Ubuntu 24.04 a cada push, pull request ou execução manual. Os testes não precisam de placa de som e não alteram o áudio da máquina. A validação do CI cobre o processamento e as simulações de configuração/interface; integração com o servidor de áudio e dispositivos reais continua sendo uma verificação local.
+O GitHub Actions executa esse processo em Ubuntu 24.04 a cada push, pull request ou execução manual. Uma segunda etapa usa o ambiente oficial `archlinux:base-devel`, executa os testes novamente e instala o pacote com pacman para verificar o iniciador gráfico. Os testes não precisam de placa de som e não alteram o áudio da máquina. A validação do CI cobre o processamento e as simulações de configuração/interface; integração com o servidor de áudio e dispositivos reais continua sendo uma verificação local.
 
 ### Publicar uma versão
 
-Atualize `VERSION` em `bridge.py`, o `CHANGELOG.md` e os exemplos do README. Envie o commit e uma tag no formato `vX.Y.Z` correspondente à versão. O workflow confere a tag, compila e testa o pacote e, somente após o sucesso, cria uma release pública com os instaladores ZIP/.deb e `SHA256SUMS`. Pushes comuns continuam gerando apenas builds de desenvolvimento.
+Atualize `VERSION` em `bridge.py`, o `CHANGELOG.md` e os exemplos do README. Envie o commit e uma tag no formato `vX.Y.Z` correspondente à versão. O workflow confere a tag, compila e testa o pacote e, somente após o sucesso, cria uma release pública com os instaladores ZIP/.deb/.pkg.tar.zst, o `PKGBUILD` e um `SHA256SUMS` unificado. Pushes comuns continuam gerando apenas builds de desenvolvimento.
 
 O workflow prepara a release como rascunho antes de publicá-la. Se uma publicação falhar e deixar um rascunho, confira o erro e remova somente esse rascunho antes de executar novamente; releases existentes não são sobrescritas automaticamente.

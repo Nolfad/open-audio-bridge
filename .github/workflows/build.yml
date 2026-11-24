@@ -50,12 +50,72 @@ jobs:
             dist/*.zip
             dist/*.deb
             dist/SHA256SUMS
+            dist/arch/PKGBUILD
+          if-no-files-found: error
+          retention-days: 30
+
+  arch:
+    name: Empacotar e testar no Arch Linux
+    needs: build
+    runs-on: ubuntu-24.04
+    container: archlinux:base-devel
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Instalar dependências no ambiente Arch
+        run: |
+          pacman -Syu --noconfirm --needed base-devel github-cli python python-pyqt5 qt5-wayland gcc glibc pipewire pipewire-audio wireplumber pipewire-pulse libpulse systemd
+      - name: Baixar as fontes aprovadas nos testes
+        run: |
+          gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            --name "open-audio-bridge-linux-$GITHUB_RUN_NUMBER" --dir dist
+          cd dist
+          sha256sum -c SHA256SUMS
+          cp open-audio-bridge-*.zip arch/
+      - name: Gerar pacote com makepkg e executar testes
+        run: |
+          useradd --create-home builder
+          chown -R builder:builder dist/arch
+          runuser -u builder -- bash -c 'cd dist/arch && makepkg --cleanbuild --noconfirm'
+          mkdir arch-output
+          cp dist/arch/*.pkg.tar.zst dist/arch/PKGBUILD arch-output/
+          cd arch-output
+          sha256sum *.pkg.tar.zst PKGBUILD > ARCH-SHA256SUMS
+      - name: Instalar com pacman e verificar a janela do instalador
+        run: |
+          pacman -U --noconfirm arch-output/*.pkg.tar.zst
+          runuser -u builder -- env QT_QPA_PLATFORM=offscreen PYTHONDONTWRITEBYTECODE=1 python3 - <<'PY'
+          import runpy
+          from pathlib import Path
+          from PyQt5 import QtWidgets
+          launcher = runpy.run_path('/usr/bin/open-audio-bridge')
+          entry = launcher['entrypoint'](Path.home())
+          assert entry == Path('/usr/share/open-audio-bridge-installer/install.py')
+          installer = runpy.run_path(str(entry))
+          app = QtWidgets.QApplication([])
+          window = installer['Installer']()
+          window.show()
+          app.processEvents()
+          assert window.button.text() == 'Instalar e ativar'
+          window.close()
+          assert not (Path.home() / '.local/share/open-audio-bridge/app').exists()
+          print('Instalador gráfico abriu sem ativar ou alterar o áudio.')
+          PY
+      - name: Disponibilizar o pacote Arch e a receita
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: open-audio-bridge-arch-${{ github.run_number }}
+          path: arch-output/*
           if-no-files-found: error
           retention-days: 30
 
   release:
     name: Publicar release
-    needs: build
+    needs: [build, arch]
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -73,8 +133,12 @@ jobs:
         run: |
           gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" \
             --name "open-audio-bridge-linux-$GITHUB_RUN_NUMBER" --dir dist
+          gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            --name "open-audio-bridge-arch-$GITHUB_RUN_NUMBER" --dir dist
           cd dist
           sha256sum -c SHA256SUMS
+          sha256sum -c ARCH-SHA256SUMS
+          cat ARCH-SHA256SUMS >> SHA256SUMS
       - name: Preparar notas da versão
         run: |
           /usr/bin/python3 - <<'PY'
@@ -96,14 +160,19 @@ jobs:
           notes += f'\n\n## Instalar com um único arquivo\n\n**[Baixar instalador .deb]({deb_url})** — para Tuxedo/Ubuntu/Debian compatíveis.\n\n'
           notes += 'Baixe somente o `.deb`: ele já contém o programa. Dê dois cliques no arquivo e instale pelo gerenciador de programas. Depois abra **Instalar ou atualizar Open Audio Bridge** no menu e clique em **Instalar e ativar**. Não precisa baixar nem extrair o ZIP. O sistema pode baixar dependências e pedir a senha administrativa.\n\n'
           notes += 'Exige PipeWire 1.6+ e WirePlumber 0.5.15+. O aplicativo funciona e se atualiza na sua conta; o pacote .deb é o instalador, não um repositório APT. Validado em Tuxedo OS/KDE.\n\n'
+          arch_name = f'open-audio-bridge-installer-{current}-1-any.pkg.tar.zst'
+          arch_url = f'https://github.com/{repo}/releases/download/v{current}/{arch_name}'
+          notes += f'### Arch Linux\n\n**[Baixar pacote Arch]({arch_url})**. Na pasta do download, execute `sudo pacman -U ./{arch_name}`. Depois abra **Instalar ou atualizar Open Audio Bridge** no menu e clique em **Instalar e ativar**. Usa PipeWire e WirePlumber; não é compatível com um servidor PulseAudio independente.\n\n'
+          notes += 'Pacote construído, testado e instalado em ambiente Arch no CI, com abertura da janela do instalador. Reprodução em hardware Arch ainda não foi validada. O aplicativo continua recebendo atualizações pela aba Atualizações; o instalador do pacman não configura um repositório automático. A receita `PKGBUILD` também está disponível para `makepkg -si`; não foi publicada no AUR.\n\n'
           notes += f'### Alternativa: ZIP\n\nBaixe **open-audio-bridge-{current}.zip**, extraia e abra **Instalar.desktop**. Clique em **Instalar e ativar**. Essa opção instala na sua conta, sem sudo, e exige as dependências já instaladas: Python 3, PyQt5, gcc, cabeçalhos de desenvolvimento da libc, PipeWire 1.6+, WirePlumber 0.5.15+, pipewire-pulse, pactl e systemd de usuário.\n\n'
-          notes += 'O arquivo SHA256SUMS permite conferir a integridade do .deb e do ZIP. Os arquivos automáticos “Source code” do GitHub são para desenvolvimento.\n'
+          notes += 'O arquivo SHA256SUMS permite conferir a integridade do .deb, ZIP, pacote Arch e PKGBUILD. Os arquivos automáticos “Source code” do GitHub são para desenvolvimento.\n'
           Path('release-notes.md').write_text(notes, encoding='utf-8')
           PY
       - name: Criar release com instalador e checksum
         run: |
           gh release create "$RELEASE_TAG" \
             "dist/open-audio-bridge-${RELEASE_TAG#v}.zip" "dist/open-audio-bridge-installer_${RELEASE_TAG#v}_all.deb" dist/SHA256SUMS \
+            "dist/open-audio-bridge-installer-${RELEASE_TAG#v}-1-any.pkg.tar.zst" dist/PKGBUILD \
             --verify-tag --draft --title "Open Audio Bridge $RELEASE_TAG" \
             --notes-file release-notes.md
           gh release edit "$RELEASE_TAG" --draft=false

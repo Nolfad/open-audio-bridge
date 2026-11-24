@@ -1,9 +1,9 @@
-Open Audio Bridge — instalador Debian
+Open Audio Bridge — instalador Debian/Arch Linux
 =====================================
 
 Este pacote instala fontes e um iniciador. Não ativa o processamento de áudio,
-não modifica contas e não executa serviços durante a instalação pelo dpkg/apt.
-Não há scripts postinst, prerm ou postrm. Arquitetura: all; os plugins nativos
+não modifica contas e não executa serviços durante a instalação pelo dpkg/apt/pacman.
+Não há scripts postinst, prerm, postrm ou .install. Arquitetura: all/any; os plugins nativos
 são compilados pelo instalador na conta do usuário com o gcc instalado.
 
 Abra "Instalar ou atualizar Open Audio Bridge" no menu de aplicativos ou execute
@@ -22,14 +22,14 @@ para abrir seu controle. O pacote tem uma entrada separada no menu,
 open-audio-bridge-installer.desktop, que continua acessível mesmo quando uma
 versão antiga do aplicativo pessoal está instalada. As atualizações
 oferecidas dentro do aplicativo atualizam essa instalação pessoal. A versão
-mostrada pelo dpkg corresponde ao instalador Debian; pode ser diferente da
+mostrada pelo dpkg/pacman corresponde ao instalador Debian/Arch Linux; pode ser diferente da
 versão do aplicativo em execução. Atualizar este pacote não atualiza nem
 reinstala automaticamente o aplicativo de cada usuário.
 
 Para remover completamente, use primeiro a opção de desinstalação do aplicativo
 em cada conta que o instalou. Ela restaura as configurações anteriores do áudio.
 Depois remova open-audio-bridge-installer pelo gerenciador de pacotes. Remover
-ou purgar apenas o pacote Debian NÃO remove aplicativos, configurações ou
+ou purgar apenas o pacote Debian/Arch NÃO remove aplicativos, configurações ou
 backups das contas dos usuários. Caso já tenha removido o pacote, o aplicativo
 pessoal continua disponível no menu; use sua opção de desinstalação.
 
@@ -37,5 +37,10 @@ Requisitos: Python 3.10+, PyQt5, gcc, cabeçalhos libc6-dev (ou libc-dev), PipeW
 pipewire-pulse, pipewire-bin, pulseaudio-utils e systemd. Se a distribuição não
 oferecer essas versões, o gerenciador de pacotes deve recusar a instalação;
 este pacote não adiciona repositórios nem substitui componentes do sistema.
+
+No Arch Linux, instale o .pkg.tar.zst com pacman -U. As dependências são python,
+python-pyqt5, qt5-wayland, gcc, glibc, pipewire, pipewire-audio, wireplumber,
+pipewire-pulse, libpulse e systemd. As mesmas versões mínimas se aplicam.
+O pacote não é publicado no AUR nem configura um repositório pacman.
 
 Licença MIT; veja copyright e LICENSE nas fontes incluídas.

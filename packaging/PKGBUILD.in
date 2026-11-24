@@ -1,0 +1,52 @@
+# Maintainer: Nolfad <30302179+Nolfad@users.noreply.github.com>
+# Generated from the tested release ZIP; build with makepkg, never as root.
+pkgname=open-audio-bridge-installer
+pkgver=@VERSION@
+pkgrel=1
+pkgdesc='Graphical per-user installer for Open Audio Bridge'
+arch=('any')
+url='https://github.com/Nolfad/open-audio-bridge'
+license=('MIT')
+depends=('python>=3.10' 'python-pyqt5' 'qt5-wayland' 'gcc' 'glibc'
+         'pipewire>=1:1.6' 'pipewire-audio>=1:1.6' 'wireplumber>=0.5.15'
+         'pipewire-pulse' 'libpulse' 'systemd')
+options=('!strip')
+source=("$url/releases/download/v$pkgver/open-audio-bridge-$pkgver.zip")
+sha256sums=('@SHA256@')
+
+build() {
+    cd "$srcdir/open-audio-bridge-$pkgver"
+    PYTHONDONTWRITEBYTECODE=1 python3 - "$pkgver" <<'PY'
+import sys
+import bridge
+from tools.build import version
+assert version() == sys.argv[1], 'Source version does not match package'
+bridge.compile_plugins(bridge.ROOT)
+PY
+}
+
+check() {
+    cd "$srcdir/open-audio-bridge-$pkgver"
+    QT_QPA_PLATFORM=offscreen PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -v
+}
+
+package() {
+    cd "$srcdir/open-audio-bridge-$pkgver"
+    # Compile at activation on the target machine; never ship build-host .so files.
+    PYTHONDONTWRITEBYTECODE=1 python3 - "$pkgdir" <<'PY'
+from pathlib import Path
+import shutil
+import sys
+from tools.build import ROOT, sources
+payload = Path(sys.argv[1]) / 'usr/share/open-audio-bridge-installer'
+for source in sources():
+    target = payload / source.relative_to(ROOT)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(source, target)
+    target.chmod(0o644)
+PY
+    install -Dm755 packaging/open-audio-bridge "$pkgdir/usr/bin/open-audio-bridge"
+    install -Dm644 packaging/open-audio-bridge-installer.desktop "$pkgdir/usr/share/applications/open-audio-bridge-installer.desktop"
+    install -Dm644 packaging/README "$pkgdir/usr/share/doc/$pkgname/README"
+    install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

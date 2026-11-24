@@ -1,3 +1,10 @@
+# 0.5.2 — 24/11/2026
+
+- Pacote nativo `.pkg.tar.zst` para Arch Linux, com dependências declaradas e o mesmo instalador gráfico usado no Debian/Tuxedo.
+- Releases incluem o pacote pronto e a receita `PKGBUILD` com SHA256 das fontes. A aplicação mantém suas atualizações automáticas na conta do usuário.
+- CI constrói e testa em Arch, instala com pacman e verifica a janela do instalador antes de publicar. O teste não valida reprodução em hardware real no Arch.
+- Documentadas instalação, migração sem desinstalar uma versão gerenciada e remoção. Sem publicação no AUR nesta versão.
+
 # 0.5.1 — 24/11/2026
 
 - Nova aba Configurações, com o botão Desinstalar fora da área principal de controle do áudio.
