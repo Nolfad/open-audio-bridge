@@ -1,6 +1,6 @@
 # Open Audio Bridge 0.5.2
 
-Controle de volume integrado ao KDE, com instalação gráfica e restauração do áudio anterior. Validado em Tuxedo OS, com PipeWire 1.6.8 e WirePlumber 0.5.25.
+Controle de volume integrado ao KDE, com instalação gráfica e restauração do áudio anterior. Validado em Tuxedo OS, com PipeWire 1.6.8 e WirePlumber 0.5.15.
 
 [![Build Linux](https://github.com/Nolfad/open-audio-bridge/actions/workflows/build.yml/badge.svg)](https://github.com/Nolfad/open-audio-bridge/actions/workflows/build.yml)
 
@@ -24,7 +24,7 @@ Para testar alterações ainda não lançadas, há pacotes temporários em [Acti
 
 O pacote é um **instalador**, sem scripts que alterem o áudio ao instalar pelo APT. A aplicação e suas atualizações ficam na conta do usuário. A versão mostrada pelo gerenciador de pacotes é a do instalador; a versão do programa aparece na aba Atualizações. Este download não configura um repositório APT. Para remover tudo, desinstale primeiro pelo aplicativo e depois remova o pacote `open-audio-bridge-installer`. Remover apenas o pacote não apaga aplicativos pessoais ou backups.
 
-São necessários **PipeWire 1.6+ e WirePlumber 0.5.25+**. O .deb declara essas dependências e não tenta substituir o áudio de uma distribuição antiga ou adicionar repositórios externos.
+São necessários **PipeWire 1.6+ e WirePlumber 0.5.15+**. O .deb declara essas dependências e não tenta substituir o áudio de uma distribuição antiga ou adicionar repositórios externos.
 
 ## Instalar no Arch Linux
 
@@ -55,7 +55,7 @@ A construção, os testes e a instalação do pacote são verificados em um ambi
 
 A instalação fica na sua conta, sem sudo. A pasta extraída pode ser removida depois. Atualizações usam o mesmo instalador e preservam a configuração anterior. Na migração da saída virtual, o nível anterior é convertido para a nova escala. A primeira ativação limita o fone anteriormente escolhido a 50% e as demais saídas a 35%; depois você pode ajustar normalmente até 150%. Atualizações do modo nativo preservam os volumes dos dispositivos.
 
-Dependências: Python 3, PyQt5, gcc e cabeçalhos de desenvolvimento da libc, PipeWire 1.6+, WirePlumber 0.5.25+, pipewire-pulse, pw-cli, pw-dump e pactl (pulseaudio-utils no Debian/Ubuntu ou libpulse no Arch) e systemd de usuário. Se faltar algum componente, o instalador informa antes de alterar o áudio. O pacote inclui o código-fonte; o instalador compila os dois plugins para o computador de destino. Não é um executável independente de dependências.
+Dependências: Python 3, PyQt5, gcc e cabeçalhos de desenvolvimento da libc, PipeWire 1.6+, WirePlumber 0.5.15+, pipewire-pulse, pw-cli, pw-dump e pactl (pulseaudio-utils no Debian/Ubuntu ou libpulse no Arch) e systemd de usuário. Se faltar algum componente, o instalador informa antes de alterar o áudio. O pacote inclui o código-fonte; o instalador compila os dois plugins para o computador de destino. Não é um executável independente de dependências.
 
 ## Atualizações automáticas
 
