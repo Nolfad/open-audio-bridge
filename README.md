@@ -1,4 +1,4 @@
-# Open Audio Bridge 0.6.1
+# Open Audio Bridge 0.7.2
 
 Controle de volume integrado ao KDE, com instalação gráfica e restauração do áudio anterior. Validado em Tuxedo OS, com PipeWire 1.6.8 e WirePlumber 0.5.15.
 
@@ -6,11 +6,11 @@ Controle de volume integrado ao KDE, com instalação gráfica e restauração d
 
 ## Baixar e instalar
 
-**Tuxedo OS, Ubuntu ou Debian compatível: [baixar instalador .deb — arquivo único](https://github.com/Nolfad/open-audio-bridge/releases/download/v0.6.1/open-audio-bridge-installer_0.6.1_all.deb).**
+**Tuxedo OS, Ubuntu ou Debian compatível: [baixar instalador .deb — arquivo único](https://github.com/Nolfad/open-audio-bridge/releases/download/v0.7.2/open-audio-bridge-installer_0.7.2_all.deb).**
 
 Baixe somente o `.deb`: ele já contém o programa. Dê dois cliques no arquivo para abrir o gerenciador de programas e instalar. Depois abra **Instalar ou atualizar Open Audio Bridge** no menu e clique em **Instalar e ativar**. Não precisa baixar nem extrair o ZIP. O sistema pode baixar dependências e pedir a senha administrativa durante a instalação do pacote.
 
-**Arch Linux: [baixar pacote .pkg.tar.zst](https://github.com/Nolfad/open-audio-bridge/releases/download/v0.6.1/open-audio-bridge-installer-0.6.1-1-any.pkg.tar.zst).** Veja as instruções abaixo.
+**Arch Linux: [baixar pacote .pkg.tar.zst](https://github.com/Nolfad/open-audio-bridge/releases/download/v0.7.2/open-audio-bridge-installer-0.7.2-1-any.pkg.tar.zst).** Veja as instruções abaixo.
 
 A [última release](https://github.com/Nolfad/open-audio-bridge/releases/latest) também oferece o ZIP como alternativa. Os downloads são públicos, sem login no GitHub. O arquivo `SHA256SUMS` permite conferir a integridade dos pacotes.
 
@@ -18,7 +18,7 @@ Para testar alterações ainda não lançadas, há pacotes temporários em [Acti
 
 ## Instalar com .deb
 
-1. Baixe **open-audio-bridge-installer_0.6.1_all.deb** e abra no gerenciador de programas. Ele instala as dependências; essa etapa usa a autorização administrativa normal do sistema.
+1. Baixe **open-audio-bridge-installer_0.7.2_all.deb** e abra no gerenciador de programas. Ele instala as dependências; essa etapa usa a autorização administrativa normal do sistema.
 2. Abra **Instalar ou atualizar Open Audio Bridge** no menu e clique em **Instalar e ativar**.
 3. Depois use **Open Audio Bridge** no menu ou o ícone da bandeja.
 
@@ -28,11 +28,11 @@ São necessários **PipeWire 1.6+ e WirePlumber 0.5.15+**. O .deb declara essas 
 
 ## Instalar no Arch Linux
 
-1. Baixe **open-audio-bridge-installer-0.6.1-1-any.pkg.tar.zst** da release.
+1. Baixe **open-audio-bridge-installer-0.7.2-1-any.pkg.tar.zst** da release.
 2. Na pasta onde baixou o arquivo, execute:
 
    ```sh
-   sudo pacman -U ./open-audio-bridge-installer-0.6.1-1-any.pkg.tar.zst
+   sudo pacman -U ./open-audio-bridge-installer-0.7.2-1-any.pkg.tar.zst
    ```
 
 3. Abra **Instalar ou atualizar Open Audio Bridge** no menu e clique em **Instalar e ativar**.
@@ -55,7 +55,7 @@ A construção, os testes e a instalação do pacote são verificados em um ambi
 
 A instalação fica na sua conta, sem sudo. A pasta extraída pode ser removida depois. Atualizações usam o mesmo instalador e preservam a configuração anterior. Na migração da saída virtual, o nível anterior é convertido para a nova escala. A primeira ativação limita o fone anteriormente escolhido a 50% e as demais saídas a 35%; depois você pode ajustar normalmente até 150%. Atualizações do modo nativo preservam os volumes dos dispositivos.
 
-Dependências: Python 3, PyQt5, gcc e cabeçalhos de desenvolvimento da libc, PipeWire 1.6+, WirePlumber 0.5.15+, pipewire-pulse, pw-cli, pw-dump e pactl (pulseaudio-utils no Debian/Ubuntu ou libpulse no Arch) e systemd de usuário. Se faltar algum componente, o instalador informa antes de alterar o áudio. O pacote inclui o código-fonte; o instalador compila os plugins para o computador de destino. Não é um executável independente de dependências.
+Dependências: Python 3, PyQt5, gcc e cabeçalhos de desenvolvimento da libc, PipeWire 1.6+, WirePlumber 0.5.15+, pipewire-pulse, pw-cli, pw-dump, pw-record e pactl (pulseaudio-utils no Debian/Ubuntu ou libpulse no Arch) e systemd de usuário. Se faltar algum componente, o instalador informa antes de alterar o áudio. O pacote inclui o código-fonte; o instalador compila os plugins para o computador de destino. Não é um executável independente de dependências.
 
 ## Atualizações automáticas
 
@@ -103,7 +103,7 @@ A aba **Volume e ganho** reúne a curva de volume e o **Reforço máximo adaptat
 
 Na aba **Experiência musical**, escolha **Música — Quente**, **Eletrônica — Graves e clareza** ou **Sem processamento musical**. Os dois modos analisam lentamente a distribuição de energia da gravação e adicionam reforços moderados de graves e detalhes; não cortam o grave original para obter volume. A **Amplitude estéreo** (0–25%) expande suavemente apenas a componente lateral acima dos graves, preservando o centro e sinais mono. São efeitos próprios para reprodução estéreo, não um decodificador ou renderizador Dolby Atmos.
 
-Na aba **Equalizador**, selecione um preset (Neutro, Música, Rock, Pop, Funk, Filme, Voz) ou ajuste individualmente as dez bandas de −6 a +6 dB. A equalização manual e o modo musical são independentes e são preservados nas atualizações.
+Na aba **Equalizador**, selecione um preset (Neutro, Música, Rock, Pop, Funk, Filme, Voz) ou ajuste individualmente as dez bandas de −6 a +6 dB. A equalização manual e o modo musical são independentes e são preservados nas atualizações. A troca de presets anima suavemente os cursores, sem aplicar configurações intermediárias, e os controles permanecem disponíveis enquanto o ajuste é aplicado. O cabeçalho mantém a saída visível e os controles na mesma posição. As faixas coloridas mostram energia medida nas dez bandas da saída selecionada (−80 a 0 dBFS) sem modificar o áudio; elas só monitoram quando a aba está visível e há reprodução.
 
 Cadeia: **modo musical opcional → EQ manual opcional → ganho adaptativo, volume e proteção antecipada de picos em um único estágio**. O estágio final utiliza estimativa de true peak com interpolação 4×, margem adicional e atraso de aproximadamente 6–7 ms a 48 kHz; a recuperação lenta do ganho evita nivelar o áudio a cada batida. O teto nominal é −1,2 dBTP; nenhum limitador garante ausência de distorção no alto-falante ou amplificador físico. O resultado de uma gravação já no máximo digital não pode crescer indefinidamente sem reduzir dinâmica ou usar ganho físico.
 
@@ -160,7 +160,7 @@ cd dist
 sha256sum -c SHA256SUMS
 ```
 
-O script compila os plugins com avisos tratados como erros e executa os testes em uma cópia temporária. Só gera `dist/open-audio-bridge-0.6.1.zip`, `dist/open-audio-bridge-installer_0.6.1_all.deb` e `dist/SHA256SUMS` se tudo passar. O build requer também `dpkg-deb` (pacote `dpkg`). O pacote preserva a permissão de execução do lançador e não inclui configurações pessoais, bibliotecas compiladas ou caches. A mesma fonte gera o mesmo ZIP. Também gera `dist/arch/PKGBUILD` com o SHA256 desse ZIP; em um Arch com `base-devel`, copie o ZIP para essa pasta e execute `makepkg -si` sem root para construir e instalar o pacote nativo.
+O script compila os plugins com avisos tratados como erros e executa os testes em uma cópia temporária. Só gera `dist/open-audio-bridge-<versão>.zip`, `dist/open-audio-bridge-installer_<versão>_all.deb` e `dist/SHA256SUMS` se tudo passar. O build requer também `dpkg-deb` (pacote `dpkg`). O pacote preserva a permissão de execução do lançador e não inclui configurações pessoais, bibliotecas compiladas ou caches. A mesma fonte gera o mesmo ZIP. Também gera `dist/arch/PKGBUILD` com o SHA256 desse ZIP; em um Arch com `base-devel`, copie o ZIP para essa pasta e execute `makepkg -si` sem root para construir e instalar o pacote nativo.
 
 O GitHub Actions executa esse processo em Ubuntu 24.04 a cada push, pull request ou execução manual. Uma segunda etapa usa o ambiente oficial `archlinux:base-devel`, executa os testes novamente e instala o pacote com pacman para verificar o iniciador gráfico. Os testes não precisam de placa de som e não alteram o áudio da máquina. A validação do CI cobre o processamento e as simulações de configuração/interface; integração com o servidor de áudio e dispositivos reais continua sendo uma verificação local.
 

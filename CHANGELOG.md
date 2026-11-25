@@ -1,3 +1,11 @@
+# 0.7.2 — 25/11/2026
+
+- Interface do equalizador permanece responsiva ao ativar, desativar, trocar presets e ajustar as bandas, mesmo durante a aplicação do processamento. Alterações sucessivas são reunidas na configuração mais recente, sem que respostas atrasadas sobrescrevam os ajustes.
+- Transição visual suave de 480 ms dos dez cursores ao selecionar um preset, validada no tema Breeze do KDE e no Fusion. A animação não aplica ganhos intermediários ao DSP.
+- Medidores de energia real nas dez bandas da saída selecionada (−80 a 0 dBFS), independentes dos cursores de ganho. O monitor opera somente em memória, não captura o microfone e é suspenso quando a aba não está visível ou não há reprodução.
+- Cabeçalho com duas linhas permanentes: o estado pode mudar para “Aplicando…” sem ocultar a saída selecionada ou deslocar as abas e os controles.
+- Motor de áudio, curva de volume, presets, proteção de picos, seleção de saída e configurações da 0.6.1 preservados. Atualizações de instalações gerenciadas não exigem desinstalar a versão anterior.
+
 # 0.6.1 — 25/11/2026
 
 - Atualizações nativas preservam os perfis de áudio já preparados e suspendem apenas o processamento do Open Audio Bridge, evitando recriar as saídas e reiniciar desnecessariamente o WirePlumber.

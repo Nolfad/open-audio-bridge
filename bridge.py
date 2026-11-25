@@ -2,7 +2,7 @@
 """Open Audio Bridge desktop lifecycle and PipeWire graph. No root required."""
 from pathlib import Path
 import argparse,base64,fcntl,json,math,os,shutil,signal,subprocess,sys,time,tempfile
-VERSION='0.6.1'
+VERSION='0.7.2'
 MAX_VOLUME=150
 ROOT=Path(__file__).resolve().parent
 HOME_DIR=Path.home()
@@ -108,6 +108,13 @@ def make_config(lib,target,curve,percent):
  'playback.props':{'node.name':'oab_playback','node.description':'Open Audio Bridge — saída','target.object':target,'node.autoconnect':True,'node.dont-fallback':True,'node.linger':True,'node.passive':True,'stream.dont-remix':True}}}]}
 
 def sinks():return json.loads(run(['pactl','-f','json','list','sinks']).stdout)
+def playback_present(sink):
+ # A source-output (including the optional spectrum recorder) is not playback.
+ if not sink or 'index' not in sink:return False
+ try:
+  streams=json.loads(run(['pactl','-f','json','list','sink-inputs'],timeout=3).stdout)
+  return any(str(stream.get('sink'))==str(sink['index']) and stream.get('corked') is False for stream in streams if isinstance(stream,dict))
+ except (BridgeError,TypeError,ValueError):return False
 def device_description(s):
  description=s.get('description')
  if description and description!='(null)':return description
@@ -155,13 +162,15 @@ def status():
   devices=[{'name':x['name'],'description':device_description(x)} for x in all_sinks if x['name'].startswith(('alsa_output.','bluez_output.')) and len(x.get('volume',{}))==2]
   connected=any(x['name']==settings.get('target') for x in all_sinks)
   default=default_sink()
-  return {'installed':(APP/'bridge.py').is_file(),'active':bool(s) and connected and default==SINK,'sink_present':bool(s),'connected':connected,'enabled':settings.get('enabled',False),'target':settings.get('target'),'curve':settings.get('curve','boost'),'volume':round(percent_of(s),1) if s else settings.get('volume',25),'mute':s['mute'] if s else settings.get('mute',False),'devices':devices,'default':default,'version':VERSION}
+  return {'installed':(APP/'bridge.py').is_file(),'active':bool(s) and connected and default==SINK,'sink_present':bool(s),'connected':connected,'enabled':settings.get('enabled',False),'target':settings.get('target'),'curve':settings.get('curve','boost'),'volume':round(percent_of(s),1) if s else settings.get('volume',25),'mute':s['mute'] if s else settings.get('mute',False),'devices':devices,'default':default,'playing':playback_present(next((x for x in all_sinks if x['name']==settings.get('target')),None)),'version':VERSION}
  except BridgeError as e:return {'installed':APP.exists(),'active':False,'devices':[],'error':str(e),'version':VERSION}
 
 def compile_plugins(where):
  lib=where/'lib';lib.mkdir(exist_ok=True)
  for stem in ['dynamics','volume','clean','music']:
   run(['gcc','-O2','-fPIC','-shared','-Wall','-Wextra','-Werror','-std=c11',str(where/f'src/oab_{stem}.c'),'-lm','-o',str(lib/f'liboab_{stem}.so')],timeout=30)
+
+ run(['gcc','-O2','-Wall','-Wextra','-Werror','-std=c11',str(where/'src/oab_spectrum.c'),'-lm','-o',str(lib/'oab_spectrum')],timeout=30)
 
 def prerequisites():
  missing=[x for x in ['gcc','pipewire','pactl','systemctl'] if not shutil.which(x)]

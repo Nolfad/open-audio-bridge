@@ -129,3 +129,16 @@ class DisconnectedUpgradeTests(unittest.TestCase):
    self.assertEqual(settings['volume_curve_version'],3)
    self.assertTrue(settings['mute']);self.assertEqual(settings['balance'],[1,.7])
    self.assertEqual((app/'bridge.py').read_text(),'new')
+
+class PlaybackStatusTests(unittest.TestCase):
+ def test_only_selected_uncorked_playback_counts(self):
+  streams=[{'sink':3,'corked':False},{'sink':'8','corked':True}]
+  with mock.patch.object(bridge,'run',return_value=mock.Mock(stdout=json.dumps(streams))):
+   self.assertTrue(bridge.playback_present({'index':3}))
+   self.assertFalse(bridge.playback_present({'index':8}))
+   self.assertFalse(bridge.playback_present({'index':11}))
+ def test_malformed_or_unavailable_status_stays_idle(self):
+  with mock.patch.object(bridge,'run',side_effect=bridge.BridgeError('unavailable')):
+   self.assertFalse(bridge.playback_present({'index':3}))
+  with mock.patch.object(bridge,'run',return_value=mock.Mock(stdout='not json')):
+   self.assertFalse(bridge.playback_present({'index':3}))
