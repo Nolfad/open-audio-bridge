@@ -1,4 +1,4 @@
-# Open Audio Bridge 0.6.0 — em validação
+# Open Audio Bridge 0.6.0
 
 Controle de volume integrado ao KDE, com instalação gráfica e restauração do áudio anterior. Validado em Tuxedo OS, com PipeWire 1.6.8 e WirePlumber 0.5.15.
 
@@ -6,13 +6,11 @@ Controle de volume integrado ao KDE, com instalação gráfica e restauração d
 
 ## Baixar e instalar
 
-A versão publicada permanece 0.5.2 enquanto o novo processamento é validado. Os links abaixo apontam para essa release estável.
-
-**Tuxedo OS, Ubuntu ou Debian compatível: [baixar instalador .deb — arquivo único](https://github.com/Nolfad/open-audio-bridge/releases/download/v0.5.2/open-audio-bridge-installer_0.5.2_all.deb).**
+**Tuxedo OS, Ubuntu ou Debian compatível: [baixar instalador .deb — arquivo único](https://github.com/Nolfad/open-audio-bridge/releases/download/v0.6.0/open-audio-bridge-installer_0.6.0_all.deb).**
 
 Baixe somente o `.deb`: ele já contém o programa. Dê dois cliques no arquivo para abrir o gerenciador de programas e instalar. Depois abra **Instalar ou atualizar Open Audio Bridge** no menu e clique em **Instalar e ativar**. Não precisa baixar nem extrair o ZIP. O sistema pode baixar dependências e pedir a senha administrativa durante a instalação do pacote.
 
-**Arch Linux: [baixar pacote .pkg.tar.zst](https://github.com/Nolfad/open-audio-bridge/releases/download/v0.5.2/open-audio-bridge-installer-0.5.2-1-any.pkg.tar.zst).** Veja as instruções abaixo.
+**Arch Linux: [baixar pacote .pkg.tar.zst](https://github.com/Nolfad/open-audio-bridge/releases/download/v0.6.0/open-audio-bridge-installer-0.6.0-1-any.pkg.tar.zst).** Veja as instruções abaixo.
 
 A [última release](https://github.com/Nolfad/open-audio-bridge/releases/latest) também oferece o ZIP como alternativa. Os downloads são públicos, sem login no GitHub. O arquivo `SHA256SUMS` permite conferir a integridade dos pacotes.
 
@@ -20,7 +18,7 @@ Para testar alterações ainda não lançadas, há pacotes temporários em [Acti
 
 ## Instalar com .deb
 
-1. Baixe **open-audio-bridge-installer_0.5.2_all.deb** e abra no gerenciador de programas. Ele instala as dependências; essa etapa usa a autorização administrativa normal do sistema.
+1. Baixe **open-audio-bridge-installer_0.6.0_all.deb** e abra no gerenciador de programas. Ele instala as dependências; essa etapa usa a autorização administrativa normal do sistema.
 2. Abra **Instalar ou atualizar Open Audio Bridge** no menu e clique em **Instalar e ativar**.
 3. Depois use **Open Audio Bridge** no menu ou o ícone da bandeja.
 
@@ -30,11 +28,11 @@ São necessários **PipeWire 1.6+ e WirePlumber 0.5.15+**. O .deb declara essas 
 
 ## Instalar no Arch Linux
 
-1. Baixe **open-audio-bridge-installer-0.5.2-1-any.pkg.tar.zst** da release.
+1. Baixe **open-audio-bridge-installer-0.6.0-1-any.pkg.tar.zst** da release.
 2. Na pasta onde baixou o arquivo, execute:
 
    ```sh
-   sudo pacman -U ./open-audio-bridge-installer-0.5.2-1-any.pkg.tar.zst
+   sudo pacman -U ./open-audio-bridge-installer-0.6.0-1-any.pkg.tar.zst
    ```
 
 3. Abra **Instalar ou atualizar Open Audio Bridge** no menu e clique em **Instalar e ativar**.
