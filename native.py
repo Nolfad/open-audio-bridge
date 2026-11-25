@@ -5,6 +5,7 @@ import argparse,ast,hashlib,json,os,shutil,signal,subprocess,sys,tempfile,time
 import bridge as b
 import sound
 import updater
+import audio_routes
 
 RULE=b.HOME_DIR/'.config/wireplumber/wireplumber.conf.d/93-open-audio-bridge-native.conf'
 DROPIN=b.HOME_DIR/'.config/systemd/user/pipewire.service.d/91-open-audio-bridge-native.conf'
@@ -128,16 +129,29 @@ def recover():
 def restore_rule():
  baseline=b.read(BASE,{})
  if str(RULE) in baseline.get('files',{}):b.restore({str(RULE):baseline['files'][str(RULE)]})
-def restart_policy(levels):
- default=b.default_sink()
- b.run(['systemctl','--user','restart','wireplumber'],timeout=20)
- deadline=time.monotonic()+8
+def wait_policy_devices(levels):
+ deadline=time.monotonic()+8;stable=0
  while time.monotonic()<deadline:
   if b.run(['systemctl','--user','is-failed','wireplumber'],check=False).returncode==0:raise b.BridgeError('O gerenciador de áudio não iniciou; restaurando a configuração anterior.')
-  if set(levels)<=set(level_snapshot()):break
+  try:stable=stable+1 if set(levels)<=set(level_snapshot()) else 0
+  except (b.BridgeError,ValueError,OSError):stable=0
+  if stable>=2:break
   time.sleep(.1)
+
+def restart_policy(levels):
+ default=b.default_sink();routes=audio_routes.snapshot()
+ b.run(['systemctl','--user','restart','wireplumber'],timeout=20)
+ wait_policy_devices(levels)
  restore_levels(levels)
  if b.sink_by_name(default):b.run(['pactl','set-default-sink',default])
+ audio_routes.restore(routes)
+
+def restart_audio_server(levels):
+ # Only needed if the running server lacks the required LADSPA search path.
+ # Preserve levels and default microphone before it destroys the old IDs.
+ routes=audio_routes.snapshot()
+ b.run(['systemctl','--user','restart','pipewire','pipewire-pulse','wireplumber'],timeout=25)
+ wait_policy_devices(levels);restore_levels(levels);audio_routes.restore(routes)
 
 def card_for_sink(sink,cards):
  props=sink.get('properties',{})
@@ -154,10 +168,17 @@ def publish_paths(prepared):
    baseline['files'].update(b.snapshot([target]));b.save(BASE,baseline)
   b.atomic(target,source.read_text())
 
+def validate_mixers(config):
+ for item in config.get('mixer_cards',{}).values():
+  profile=Path(item.get('profile',''))
+  if not profile.is_file() or not profile.resolve().is_relative_to((b.APP/'mixer').resolve()):raise b.BridgeError('Perfil de áudio preparado ausente ou fora da instalação; operação cancelada: '+str(profile))
+
+
 def prepare_mixers():
  """Replace only playback mixer paths; microphones keep their original profiles."""
  import native_mixer
  config=settings();previous=json.loads(json.dumps(config));rule_before=b.snapshot([RULE]);known=config.get('mixer_cards',{})
+ validate_mixers(config)
  cards=json.loads(b.run(['pactl','-f','json','list','cards']).stdout)
  for sink in candidates(b.sinks()):
   if 'HW_VOLUME_CTRL' not in sink.get('flags',[]):continue
@@ -255,8 +276,18 @@ def enable():
  except Exception:
   b.run(['systemctl','--user','disable','--now','open-audio-bridge'],check=False,timeout=20)
   if b.run(['systemctl','--user','is-active','open-audio-bridge'],check=False).returncode==0:raise b.BridgeError('Não consegui parar o serviço; backups e estado foram preservados.')
-  recover();b.restore(rule);b.save(b.SETTINGS,dict(previous,enabled=False));restart_policy(levels)
+  recover();policy_changed=b.snapshot([RULE])!=rule
+  b.restore(rule);b.save(b.SETTINGS,dict(previous,enabled=False))
+  if policy_changed:restart_policy(levels)
+  else:restore_levels(levels)
   raise
+
+
+def suspend():
+ """Detach DSP for an upgrade without unloading profiles or changing preferences."""
+ b.run(['systemctl','--user','stop','open-audio-bridge'],timeout=20)
+ if b.run(['systemctl','--user','is-active','open-audio-bridge'],check=False).returncode==0:raise b.BridgeError('Não consegui parar o processamento; configurações foram preservadas.')
+ recover()
 
 
 def disable():
@@ -341,6 +372,7 @@ def install(source,preserve_enabled=False,scheduled=False):
  baseline=b.read(BASE,{})
  for path in [RULE,*PLUGINS.values()]:
   if path.exists() and (not BASE.exists() or (path in PLUGINS.values() and str(path) not in baseline.get('files',{}))):raise b.BridgeError('Arquivo não gerenciado preservado: '+str(path))
+ if is_native:validate_mixers(before)
  stage=b.APP.with_name('app.native-staging');shutil.rmtree(stage,ignore_errors=True)
  shutil.copytree(source,stage,ignore=shutil.ignore_patterns('.git','dist','lib','__pycache__','mixer','docs'))
  b.compile_plugins(stage)
@@ -352,11 +384,13 @@ def install(source,preserve_enabled=False,scheduled=False):
  legacy_sink=b.sink_by_name(b.SINK)
  streams=[x['index'] for x in json.loads(b.run(['pactl','-f','json','list','sink-inputs']).stdout) if legacy_sink and x['sink']==legacy_sink['index']]
  levels=level_snapshot();default=b.default_sink();running=b.run(['systemctl','--user','is-active','open-audio-bridge'],check=False).returncode==0
- if scheduled and (not updater.automatic() or updater.playback_busy()):
-  shutil.rmtree(stage,ignore_errors=True);shutil.rmtree(backup,ignore_errors=True)
-  raise updater.DeferredUpdate('Atualização adiada até uma pausa na reprodução.')
  try:
-  if is_native:disable()
+  if scheduled and (not updater.automatic() or updater.playback_busy()):raise updater.DeferredUpdate('Atualização adiada até uma pausa na reprodução.')
+ except updater.DeferredUpdate:
+  shutil.rmtree(stage,ignore_errors=True);shutil.rmtree(backup,ignore_errors=True)
+  raise
+ try:
+  if is_native:suspend()
   elif legacy:b.disable();before=settings()
   if b.LEGACY.exists():
    if not b.LEGACY.read_text().startswith('# Managed by Open Audio Bridge'):raise b.BridgeError('Regra antiga não gerenciada foi preservada.')
@@ -368,13 +402,16 @@ def install(source,preserve_enabled=False,scheduled=False):
    b.save(BASE,{'files':snapshots,'volumes':level_snapshot(),'default':default if default!=b.SINK else original.get('default')})
   else:
    baseline=b.read(BASE);baseline['files'].update({str(path):snap[str(path)] for path in PLUGINS.values() if str(path) not in baseline['files']});b.save(BASE,baseline)
+  # These files are still referenced by live WirePlumber cards. Keep their exact
+  # contents and stable installed paths when replacing application code.
+  if is_native and (b.APP/'mixer').exists():shutil.copytree(b.APP/'mixer',stage/'mixer')
   if b.APP.exists():shutil.rmtree(b.APP)
   stage.rename(b.APP)
   for stem,path in PLUGINS.items():install_plugin(b.APP/f'lib/liboab_{stem}.so',path)
   paths=f'{b.HOME_DIR}/.ladspa:/usr/lib64/ladspa:/usr/lib/ladspa:/usr/lib/x86_64-linux-gnu'
   b.atomic(DROPIN,'# Managed by Open Audio Bridge native\n[Service]\nEnvironment="LADSPA_PATH='+paths+'"\n')
   selected=before.get('target','default') if is_native else 'default'
-  config={'routing':'native','target':selected,'curve':before.get('curve','boost'),'enabled':False,'autostart':before.get('autostart',True),'volume_curve_version':3,'mixer_cards':{},'sound':sound.normalize(before.get('sound'))}
+  config={'routing':'native','target':selected,'curve':before.get('curve','boost'),'enabled':False,'autostart':before.get('autostart',True),'volume_curve_version':3,'mixer_cards':before.get('mixer_cards',{}) if is_native else {},'sound':sound.normalize(before.get('sound'))}
   b.save(b.SETTINGS,config)
   executable=json.dumps(sys.executable);backend=json.dumps(str(b.APP/'native.py').replace('%','%%'))
   b.atomic(b.SERVICE,'[Unit]\nDescription=Open Audio Bridge native DSP\nAfter=pipewire.service pipewire-pulse.service wireplumber.service\nRequires=pipewire.service\n\n[Service]\nType=simple\nExecStart='+executable+' '+backend+' daemon\nExecStopPost='+executable+' '+backend+' recover\nRestart=on-failure\nRestartSec=1\nTimeoutStopSec=10\n\n[Install]\nWantedBy=default.target\n')
@@ -383,8 +420,7 @@ def install(source,preserve_enabled=False,scheduled=False):
   pid=b.run(['systemctl','--user','show','pipewire','--property=MainPID','--value']).stdout.strip()
   environment=Path('/proc')/pid/'environ'
   if str(b.HOME_DIR/'.ladspa').encode() not in environment.read_bytes():
-   b.run(['systemctl','--user','restart','pipewire','pipewire-pulse','wireplumber'],timeout=25)
-   time.sleep(.5)
+   restart_audio_server(level_snapshot())
   # Migration starts from the previous processed listening level; cap other outputs once.
   current=level_snapshot()
   if not is_native:
@@ -407,13 +443,16 @@ def install(source,preserve_enabled=False,scheduled=False):
   b.run(['systemctl','--user','disable','--now','open-audio-bridge'],check=False,timeout=20)
   if b.run(['systemctl','--user','is-active','open-audio-bridge'],check=False).returncode==0:raise b.BridgeError('Não consegui parar o serviço para reverter. Backup preservado em '+str(backup))
   recover()
+  policy_changed=b.snapshot([RULE])!={str(RULE):snap.get(str(RULE))}
   # Include helper files created during this attempt in the rollback.
   created={name:value for name,value in b.read(BASE,{}).get('files',{}).items() if name not in snap}
   b.restore(created);b.restore(snap)
   if b.APP.exists():shutil.rmtree(b.APP)
   if (backup/'app').exists():shutil.copytree(backup/'app',b.APP)
   restore_state(backup/'state')
-  b.run(['systemctl','--user','daemon-reload']);updater.sync_schedule();restart_policy(levels)
+  b.run(['systemctl','--user','daemon-reload']);updater.sync_schedule()
+  if not is_native or policy_changed:restart_policy(levels)
+  else:restore_levels(levels)
   if is_native:sync_startup()
   if running:
    b.run(['systemctl','--user','start','open-audio-bridge'],timeout=20)

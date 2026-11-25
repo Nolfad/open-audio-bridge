@@ -1,3 +1,10 @@
+# 0.6.1 — 25/11/2026
+
+- Atualizações nativas preservam os perfis de áudio já preparados e suspendem apenas o processamento do Open Audio Bridge, evitando recriar as saídas e reiniciar desnecessariamente o WirePlumber.
+- Atualizações automáticas aguardam pausa tanto na reprodução quanto na captura, incluindo chamadas e fluxos ativos silenciados. Quando não é possível confirmar o estado, a instalação é adiada.
+- Quando uma mudança de perfil exigir reinício do gerenciador de áudio, são preservadas as rotas dos fluxos que continuam conectados e as saídas/entradas padrão.
+- Testes de atualização e restauração sem reinício do servidor de áudio. O motor de processamento musical da 0.6.0 permanece inalterado.
+
 # 0.6.0 — 25/11/2026
 
 - Substitui a compressão e a dupla limitação do fluxo nativo por um ganho estéreo adaptativo único, com antecipação de picos, interpolação 4× e recuperação lenta para preservar contrastes musicais.

@@ -1,4 +1,4 @@
-# Open Audio Bridge 0.6.0
+# Open Audio Bridge 0.6.1
 
 Controle de volume integrado ao KDE, com instalação gráfica e restauração do áudio anterior. Validado em Tuxedo OS, com PipeWire 1.6.8 e WirePlumber 0.5.15.
 
@@ -6,11 +6,11 @@ Controle de volume integrado ao KDE, com instalação gráfica e restauração d
 
 ## Baixar e instalar
 
-**Tuxedo OS, Ubuntu ou Debian compatível: [baixar instalador .deb — arquivo único](https://github.com/Nolfad/open-audio-bridge/releases/download/v0.6.0/open-audio-bridge-installer_0.6.0_all.deb).**
+**Tuxedo OS, Ubuntu ou Debian compatível: [baixar instalador .deb — arquivo único](https://github.com/Nolfad/open-audio-bridge/releases/download/v0.6.1/open-audio-bridge-installer_0.6.1_all.deb).**
 
 Baixe somente o `.deb`: ele já contém o programa. Dê dois cliques no arquivo para abrir o gerenciador de programas e instalar. Depois abra **Instalar ou atualizar Open Audio Bridge** no menu e clique em **Instalar e ativar**. Não precisa baixar nem extrair o ZIP. O sistema pode baixar dependências e pedir a senha administrativa durante a instalação do pacote.
 
-**Arch Linux: [baixar pacote .pkg.tar.zst](https://github.com/Nolfad/open-audio-bridge/releases/download/v0.6.0/open-audio-bridge-installer-0.6.0-1-any.pkg.tar.zst).** Veja as instruções abaixo.
+**Arch Linux: [baixar pacote .pkg.tar.zst](https://github.com/Nolfad/open-audio-bridge/releases/download/v0.6.1/open-audio-bridge-installer-0.6.1-1-any.pkg.tar.zst).** Veja as instruções abaixo.
 
 A [última release](https://github.com/Nolfad/open-audio-bridge/releases/latest) também oferece o ZIP como alternativa. Os downloads são públicos, sem login no GitHub. O arquivo `SHA256SUMS` permite conferir a integridade dos pacotes.
 
@@ -18,7 +18,7 @@ Para testar alterações ainda não lançadas, há pacotes temporários em [Acti
 
 ## Instalar com .deb
 
-1. Baixe **open-audio-bridge-installer_0.6.0_all.deb** e abra no gerenciador de programas. Ele instala as dependências; essa etapa usa a autorização administrativa normal do sistema.
+1. Baixe **open-audio-bridge-installer_0.6.1_all.deb** e abra no gerenciador de programas. Ele instala as dependências; essa etapa usa a autorização administrativa normal do sistema.
 2. Abra **Instalar ou atualizar Open Audio Bridge** no menu e clique em **Instalar e ativar**.
 3. Depois use **Open Audio Bridge** no menu ou o ícone da bandeja.
 
@@ -28,11 +28,11 @@ São necessários **PipeWire 1.6+ e WirePlumber 0.5.15+**. O .deb declara essas 
 
 ## Instalar no Arch Linux
 
-1. Baixe **open-audio-bridge-installer-0.6.0-1-any.pkg.tar.zst** da release.
+1. Baixe **open-audio-bridge-installer-0.6.1-1-any.pkg.tar.zst** da release.
 2. Na pasta onde baixou o arquivo, execute:
 
    ```sh
-   sudo pacman -U ./open-audio-bridge-installer-0.6.0-1-any.pkg.tar.zst
+   sudo pacman -U ./open-audio-bridge-installer-0.6.1-1-any.pkg.tar.zst
    ```
 
 3. Abra **Instalar ou atualizar Open Audio Bridge** no menu e clique em **Instalar e ativar**.
@@ -61,9 +61,11 @@ Dependências: Python 3, PyQt5, gcc e cabeçalhos de desenvolvimento da libc, Pi
 
 A partir da versão 0.5, as atualizações automáticas ficam ativadas. O programa consulta a **última release estável** de `Nolfad/open-audio-bridge` a cada seis horas; um serviço da sua conta verifica pendências a cada quinze minutos. Não é necessário deixar a janela aberta. Computador desligado ou sessão encerrada não executam atualizações.
 
-Quando há uma versão nova, a instalação automática aguarda não haver reprodução ativa. Se algum aplicativo mantém um fluxo aberto, ela pode continuar esperando. A aba **Atualizações** permite desligar a automação, ver o resultado da última busca ou usar **Buscar e atualizar agora**, que pode interromper o áudio por alguns instantes. Versões de desenvolvimento, prereleases e commits sem release não são instalados. Quem usa 0.4 ou anterior precisa instalar 0.5 uma vez para receber essa função.
+Quando há uma versão nova, a instalação automática aguarda uma pausa na reprodução e na captura de áudio, inclusive chamadas com o microfone ativo. Fluxos ativos silenciados também adiam a instalação. A aba **Atualizações** permite desligar a automação, ver o resultado da última busca ou usar **Buscar e atualizar agora**, que pode interromper o áudio por alguns instantes. Versões de desenvolvimento, prereleases e commits sem release não são instalados. Quem usa 0.4 ou anterior precisa instalar 0.5 uma vez para receber essa função.
 
 Os pacotes vêm de URLs HTTPS fixas do repositório, têm tamanho limitado e passam pela conferência SHA256 e validação de caminhos/versão antes de executar o instalador. O checksum confere integridade; não é uma assinatura independente do GitHub. O instalador mantém cópias de segurança e restauração em caso de falha. Presets, ganho, volume, preferência de atualização e estado ativado/desativado são preservados. A interface 0.5 ou posterior recarrega sozinha ao concluir uma atualização, mantendo o ícone na bandeja.
+
+Atualizações de uma instalação nativa já preparada mantêm os perfis de áudio e não reiniciam desnecessariamente o PipeWire ou o WirePlumber. Se um dispositivo novo ou uma alteração de perfil exigir o reinício do gerenciador, o programa tenta restaurar as saídas, entradas e rotas dos fluxos que continuam conectados. Aplicativos que se desconectarem completamente podem precisar ser reabertos, sem reiniciar o computador.
 
 As atualizações da aplicação não usam sudo. As dependências do sistema continuam sob responsabilidade do gerenciador de pacotes. Se uma versão futura exigir dependências indisponíveis, a atualização deve falhar sem substituir a instalação funcional; consulte a mensagem na aba Atualizações.
 
@@ -158,7 +160,7 @@ cd dist
 sha256sum -c SHA256SUMS
 ```
 
-O script compila os plugins com avisos tratados como erros e executa os testes em uma cópia temporária. Só gera `dist/open-audio-bridge-0.6.0.zip`, `dist/open-audio-bridge-installer_0.6.0_all.deb` e `dist/SHA256SUMS` se tudo passar. O build requer também `dpkg-deb` (pacote `dpkg`). O pacote preserva a permissão de execução do lançador e não inclui configurações pessoais, bibliotecas compiladas ou caches. A mesma fonte gera o mesmo ZIP. Também gera `dist/arch/PKGBUILD` com o SHA256 desse ZIP; em um Arch com `base-devel`, copie o ZIP para essa pasta e execute `makepkg -si` sem root para construir e instalar o pacote nativo.
+O script compila os plugins com avisos tratados como erros e executa os testes em uma cópia temporária. Só gera `dist/open-audio-bridge-0.6.1.zip`, `dist/open-audio-bridge-installer_0.6.1_all.deb` e `dist/SHA256SUMS` se tudo passar. O build requer também `dpkg-deb` (pacote `dpkg`). O pacote preserva a permissão de execução do lançador e não inclui configurações pessoais, bibliotecas compiladas ou caches. A mesma fonte gera o mesmo ZIP. Também gera `dist/arch/PKGBUILD` com o SHA256 desse ZIP; em um Arch com `base-devel`, copie o ZIP para essa pasta e execute `makepkg -si` sem root para construir e instalar o pacote nativo.
 
 O GitHub Actions executa esse processo em Ubuntu 24.04 a cada push, pull request ou execução manual. Uma segunda etapa usa o ambiente oficial `archlinux:base-devel`, executa os testes novamente e instala o pacote com pacman para verificar o iniciador gráfico. Os testes não precisam de placa de som e não alteram o áudio da máquina. A validação do CI cobre o processamento e as simulações de configuração/interface; integração com o servidor de áudio e dispositivos reais continua sendo uma verificação local.
 

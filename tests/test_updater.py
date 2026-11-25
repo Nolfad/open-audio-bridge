@@ -51,6 +51,34 @@ class UpdaterTests(unittest.TestCase):
    with self.assertRaises(ValueError):updater.validate_url(url)
   updater.validate_url('https://release-assets.githubusercontent.com/file')
 
+class AudioBusyTests(unittest.TestCase):
+ def query(self,playback,capture):
+  def run(args):
+   self.assertEqual(args[:4],['pactl','-f','json','list'])
+   return mock.Mock(stdout=json.dumps({'sink-inputs':playback,'source-outputs':capture}[args[4]]))
+  return run
+ def test_active_playback_and_capture_block_even_when_silent(self):
+  for kind in ('playback','capture'):
+   for muted,volume in ((False,65536),(True,65536),(False,0),(True,0)):
+    stream={'corked':False,'mute':muted,'volume':{'front-left':{'value':volume}}}
+    with self.subTest(kind=kind,muted=muted,volume=volume),mock.patch.object(updater.b,'run',side_effect=self.query([stream] if kind=='playback' else [],[stream] if kind=='capture' else [])):
+     self.assertTrue(updater.playback_busy())
+ def test_no_streams_or_only_explicitly_corked_streams_are_idle(self):
+  for playback,capture in (([],[]),([{'corked':True}],[]),([],[{'corked':True}]),([{'corked':True}],[{'corked':True}])):
+   with self.subTest(playback=playback,capture=capture),mock.patch.object(updater.b,'run',side_effect=self.query(playback,capture)):
+    self.assertFalse(updater.playback_busy())
+ def test_unknown_stream_state_never_counts_as_idle(self):
+  for invalid in ({},None,'unexpected',[None],[{}],[{'corked':'true'}],[{'corked':0}]):
+   for kind in ('playback','capture'):
+    with self.subTest(invalid=invalid,kind=kind),mock.patch.object(updater.b,'run',side_effect=self.query(invalid if kind=='playback' else [],invalid if kind=='capture' else [])):
+     with self.assertRaises(updater.DeferredUpdate):updater.playback_busy()
+ def test_failed_or_invalid_queries_defer(self):
+  for failure in (updater.b.BridgeError('Connection failure'),mock.Mock(stdout='not json')):
+   for query_index in (0,1):
+    results=[mock.Mock(stdout='[]')]*query_index+[failure]
+    with self.subTest(failure=failure,query_index=query_index),mock.patch.object(updater.b,'run',side_effect=results):
+     with self.assertRaises(updater.DeferredUpdate):updater.playback_busy()
+
 class UpdateFlowTests(unittest.TestCase):
  def setUp(self):
   self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup);self.root=Path(self.temp.name);self.app=self.root/'app';self.state=self.root/'state';self.app.mkdir();self.state.mkdir()
@@ -73,6 +101,17 @@ class UpdateFlowTests(unittest.TestCase):
   with mock.patch.object(updater,'download',side_effect=self.fetch),mock.patch.object(updater,'playback_busy',return_value=True),mock.patch.object(updater,'apply_release',side_effect=AssertionError('must not install')):
    result=updater.check_apply()
   self.assertEqual(result['state'],'deferred');self.assertEqual(self.calls,[updater.API])
+ def test_capture_query_failure_defers_without_running_installer(self):
+  with mock.patch.object(updater,'download',side_effect=self.fetch),mock.patch.object(updater.b,'run',side_effect=[mock.Mock(stdout='[]'),updater.b.BridgeError('Connection failure')]),mock.patch.object(updater,'apply_release',side_effect=AssertionError('must not install')):
+   result=updater.check_apply()
+  self.assertEqual(result['state'],'deferred');self.assertEqual(self.calls,[updater.API])
+  self.assertEqual(updater.file_version(self.installed),'0.5.0')
+ def test_capture_started_during_download_defers_before_installer(self):
+  capture={'corked':False,'mute':True,'volume':{'mono':{'value':0}}}
+  responses=[mock.Mock(stdout=json.dumps(streams)) for streams in ([],[],[],[capture])]
+  with mock.patch.object(updater,'download',side_effect=self.fetch),mock.patch.object(updater.b,'run',side_effect=responses),mock.patch.object(updater.subprocess,'run',side_effect=AssertionError('must not install')):
+   result=updater.check_apply()
+  self.assertEqual(result['state'],'deferred');self.assertEqual(updater.file_version(self.installed),'0.5.0')
  def test_idle_retry_uses_cached_release_and_verified_package(self):
   updater.record(last_checked=updater.time.time(),available_version='0.6.0',state='deferred')
   def install(args,**kwargs):

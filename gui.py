@@ -54,7 +54,7 @@ class Window(W.QMainWindow):
   page=W.QWidget();layout=W.QVBoxLayout(page);layout.setSpacing(16)
   self.update_version=W.QLabel('Interface em execução: '+VERSION);layout.addWidget(self.update_version)
   self.update_auto=W.QCheckBox('Buscar e instalar atualizações automaticamente');self.update_auto.setChecked(True);layout.addWidget(self.update_auto)
-  note=W.QLabel('A atualização automática aguarda um momento sem áudio em reprodução. Buscar e atualizar agora aplica a versão disponível imediatamente e pode interromper o áudio por alguns instantes. Seus ajustes são preservados.');note.setWordWrap(True);layout.addWidget(note)
+  note=W.QLabel('A atualização automática aguarda uma pausa na reprodução e na captura de áudio, inclusive chamadas. Buscar e atualizar agora aplica a versão disponível imediatamente e pode interromper o áudio por alguns instantes. Seus ajustes são preservados.');note.setWordWrap(True);layout.addWidget(note)
   self.update_button=W.QPushButton('Buscar e atualizar agora');layout.addWidget(self.update_button)
   self.update_checked=W.QLabel('Última busca: nunca');layout.addWidget(self.update_checked)
   self.update_status=W.QLabel('Aguardando informações de atualização…');self.update_status.setWordWrap(True);self.update_status.setTextFormat(QtCore.Qt.PlainText);layout.addWidget(self.update_status)
@@ -68,7 +68,7 @@ class Window(W.QMainWindow):
   checked=updates.get('last_checked',0)
   stamp=QtCore.QDateTime.fromSecsSinceEpoch(int(checked)).toString('dd/MM/yyyy HH:mm:ss') if isinstance(checked,(int,float)) and checked>0 else 'nunca'
   self.update_checked.setText('Última busca: '+stamp)
-  states={'idle':'Pronto para buscar atualizações.','checking':'Buscando atualizações…','deferred':'Atualização aguardando o áudio parar.','updating':'Instalando atualização…','updated':'Atualização aplicada.','error':'Não foi possível atualizar.'}
+  states={'idle':'Pronto para buscar atualizações.','checking':'Buscando atualizações…','deferred':'Atualização aguardando reprodução e captura em pausa.','updating':'Instalando atualização…','updated':'Atualização aplicada.','error':'Não foi possível atualizar.'}
   lines=[updates.get('message') or states.get(updates.get('state'),'Pronto para buscar atualizações.')]
   if updates.get('available_version'):lines.append('Versão disponível: '+str(updates['available_version']))
   if updates.get('error'):lines.append('Falha na atualização: '+str(updates['error']))

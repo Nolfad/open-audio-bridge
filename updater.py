@@ -98,8 +98,18 @@ def extract_release(package,destination,version):
  return root
 
 def playback_busy():
- streams=json.loads(b.run(['pactl','-f','json','list','sink-inputs']).stdout)
- return any(not item.get('corked',False) and not item.get('mute',False) and any(v.get('value',0)>0 for v in item.get('volume',{}).values()) for item in streams)
+ # Keep this entry point for installed/candidate installers; capture also
+ # matters, and a muted or zero-volume stream still owns a live connection.
+ try:
+  for kind in ('sink-inputs','source-outputs'):
+   streams=json.loads(b.run(['pactl','-f','json','list',kind]).stdout)
+   if not isinstance(streams,list):raise ValueError('Lista de fluxos inválida.')
+   for item in streams:
+    if not isinstance(item,dict) or type(item.get('corked')) is not bool:raise ValueError('Estado do fluxo desconhecido.')
+    if not item['corked']:return True
+ except (b.BridgeError,ValueError,TypeError,OSError) as error:
+  raise DeferredUpdate('Atualização adiada: não foi possível confirmar se a reprodução e a captura estão em pausa.') from error
+ return False
 
 class DeferredUpdate(Exception):pass
 
@@ -109,7 +119,7 @@ def apply_release(version,manual=False):
  with tempfile.TemporaryDirectory(prefix='oab-update-') as directory:
   package=Path(directory)/name;package.write_bytes(blob);root=extract_release(package,Path(directory)/'source',version)
   if not installed():return False
-  if not manual and (not automatic() or playback_busy()):raise DeferredUpdate('Atualização adiada até a próxima pausa na reprodução.')
+  if not manual and (not automatic() or playback_busy()):raise DeferredUpdate('Atualização adiada até a próxima pausa na reprodução e na captura.')
   if version_tuple(file_version(b.APP/'bridge.py'))>=version_tuple(version):return False
   # Candidate installer repeats the version/ownership check under native.lock.
   process=subprocess.run([sys.executable,str(root/'bridge.py'),'install-update','manual' if manual else 'scheduled'],capture_output=True,text=True)
@@ -135,7 +145,7 @@ def check_apply(manual=False):
    if not version or version_tuple(version)<=version_tuple(current):return record(state='idle',available_version=None,error='',message='Você está na versão mais recente disponível.')
    if not manual:
     if not automatic():return record(state='idle',message='Atualização automática desativada.')
-    if playback_busy():return record(state='deferred',error='',message='Versão '+version+' disponível. Aguardando uma pausa na reprodução.')
+    if playback_busy():return record(state='deferred',error='',message='Versão '+version+' disponível. Aguardando uma pausa na reprodução e na captura.')
    record(state='updating',error='',message='Baixando e instalando a versão '+version+'…')
    changed=apply_release(version,manual=manual)
    return record(state='updated' if changed else 'idle',available_version=None,error='',message='Atualizado para '+version+'.' if changed else 'A instalação já foi atualizada ou removida.')
