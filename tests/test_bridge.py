@@ -40,12 +40,13 @@ class BackendTests(unittest.TestCase):
    snap=bridge.snapshot([p,q]);p.write_bytes(b'changed');q.write_text('new')
    bridge.restore(snap)
    self.assertEqual(p.read_bytes(),b'original');self.assertEqual(p.stat().st_mode&0o777,0o600);self.assertFalse(q.exists())
- def test_graph_volume_then_final_guard(self):
+ def test_graph_has_single_volume_aware_protection(self):
   g=bridge.make_graph(Path('/tmp/plugins'),'boost')
   self.assertEqual(g['capture.volumes'][0]['control'],'volume:Volume L')
   self.assertEqual(g['capture.volumes'][0]['scale'],'cubic')
-  self.assertIn({'output':'volume:Output L','input':'guard:Input L'},g['links'])
-  self.assertEqual(g['outputs'],['guard:Output L','guard:Output R'])
+  self.assertEqual(g['links'],[])
+  self.assertEqual(g['outputs'],['volume:Output L','volume:Output R'])
+  self.assertEqual(g['nodes'][0]['label'],'oab_clean_gain')
  def test_output_cannot_fallback_or_amplify_again(self):
   c=bridge.make_config(Path('/tmp/plugins'),'alsa_output.example','boost',40)
   a=c['context.modules'][-1]['args'];p=a['playback.props']

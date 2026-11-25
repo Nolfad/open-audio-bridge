@@ -1,3 +1,11 @@
+# 0.6.0 — em validação local
+
+- Substitui a compressão e a dupla limitação do fluxo nativo por um ganho estéreo adaptativo único, com antecipação de picos, interpolação 4× e recuperação lenta para preservar contrastes musicais.
+- A curva de volume mantém sua progressão; o reforço de até 18 dB passa a representar o ganho máximo disponível de acordo com a margem do sinal.
+- Novo painel de experiência musical, com modos de timbre adaptativo Quente e Eletrônica e amplitude estéreo ajustável, independentes do EQ manual.
+- Mantém o volume e os dispositivos do KDE, preferências da instalação e curva do usuário; novos efeitos começam desligados na migração.
+- Novos testes de espectro, dinâmica, transientes, picos interamostras, silêncio e integração.
+
 # 0.5.2 — 24/11/2026
 
 - Pacote nativo `.pkg.tar.zst` para Arch Linux, com dependências declaradas e o mesmo instalador gráfico usado no Debian/Tuxedo.

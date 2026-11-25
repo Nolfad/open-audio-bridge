@@ -1,4 +1,4 @@
-"""Independent loudness drive and post-volume tone controls."""
+"""Independent maximum gain, musical enhancement and manual tone controls."""
 import math
 
 FREQUENCIES=(31.5,63,125,250,500,1000,2000,4000,8000,16000)
@@ -14,6 +14,8 @@ PRESETS={
  'voice':('Voz',(-3,-3,-2,-1,0,2,3,2,0,-1)),
 }
 
+MUSIC_MODES={'off':('Sem processamento musical',0),'warm':('Música — Quente',1),'electronic':('Eletrônica — Graves e clareza',2)}
+
 def normalize(value=None):
  if value is None:value={}
  if not isinstance(value,dict):raise ValueError('Configuração de som inválida.')
@@ -26,7 +28,10 @@ def normalize(value=None):
  bands=value.get('bands',[0.]*10)
  if not isinstance(bands,(list,tuple)) or len(bands)!=10 or any(isinstance(x,bool) or not isinstance(x,(float,int)) or not math.isfinite(x) or not -6<=x<=6 for x in bands):raise ValueError('Use dez bandas entre −6 e +6 dB.')
  if preset!='custom':bands=PRESETS[preset][1]
- return {'drive_db':float(drive),'eq_enabled':enabled,'preset':preset,'bands':[float(x) for x in bands]}
+ mode=value.get('music_mode','off');width=value.get('width',0.)
+ if not isinstance(mode,str) or mode not in MUSIC_MODES:raise ValueError('Modo musical desconhecido.')
+ if isinstance(width,bool) or not isinstance(width,(int,float)) or not math.isfinite(width) or not 0<=width<=25:raise ValueError('Ampliação estéreo deve estar entre 0 e 25%.')
+ return {'drive_db':float(drive),'eq_enabled':enabled,'preset':preset,'bands':[float(x) for x in bands],'music_mode':mode,'width':float(width)}
 
 def filters(value=None):
  config=normalize(value)

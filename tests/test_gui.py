@@ -115,6 +115,14 @@ class GuiTests(unittest.TestCase):
   self.assertEqual(saved['sound']['drive_db'],10)
   self.assertEqual(saved['sound']['bands'][0],-2)
 
+ def test_music_mode_and_width_preserve_manual_equalizer(self):
+  window,state=self.native_window()
+  index=window.music_mode.findData('warm');window.music_mode.setCurrentIndex(index);window.music_mode.activated.emit(index);wait(.7)
+  window.width.setValue(12);wait(.7)
+  saved=json.loads(state.read_text());self.assertEqual(saved['sound']['music_mode'],'warm');self.assertEqual(saved['sound']['width'],12)
+  self.assertEqual(saved['sound']['drive_db'],18)
+  self.assertEqual(saved['volume'],37)
+  self.assertFalse(saved['sound']['eq_enabled'])
  def test_update_controls_persist_preference_and_apply_manually(self):
   window,state=self.native_window(updates=dict(automatic=True,last_checked=0,available_version=None,message='',error='',state='idle'))
   self.assertIn('Atualizações',[window.tabs.tabText(i) for i in range(window.tabs.count())])

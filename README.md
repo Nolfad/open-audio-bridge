@@ -1,10 +1,12 @@
-# Open Audio Bridge 0.5.2
+# Open Audio Bridge 0.6.0 — em validação
 
 Controle de volume integrado ao KDE, com instalação gráfica e restauração do áudio anterior. Validado em Tuxedo OS, com PipeWire 1.6.8 e WirePlumber 0.5.15.
 
 [![Build Linux](https://github.com/Nolfad/open-audio-bridge/actions/workflows/build.yml/badge.svg)](https://github.com/Nolfad/open-audio-bridge/actions/workflows/build.yml)
 
 ## Baixar e instalar
+
+A versão publicada permanece 0.5.2 enquanto o novo processamento é validado. Os links abaixo apontam para essa release estável.
 
 **Tuxedo OS, Ubuntu ou Debian compatível: [baixar instalador .deb — arquivo único](https://github.com/Nolfad/open-audio-bridge/releases/download/v0.5.2/open-audio-bridge-installer_0.5.2_all.deb).**
 
@@ -55,7 +57,7 @@ A construção, os testes e a instalação do pacote são verificados em um ambi
 
 A instalação fica na sua conta, sem sudo. A pasta extraída pode ser removida depois. Atualizações usam o mesmo instalador e preservam a configuração anterior. Na migração da saída virtual, o nível anterior é convertido para a nova escala. A primeira ativação limita o fone anteriormente escolhido a 50% e as demais saídas a 35%; depois você pode ajustar normalmente até 150%. Atualizações do modo nativo preservam os volumes dos dispositivos.
 
-Dependências: Python 3, PyQt5, gcc e cabeçalhos de desenvolvimento da libc, PipeWire 1.6+, WirePlumber 0.5.15+, pipewire-pulse, pw-cli, pw-dump e pactl (pulseaudio-utils no Debian/Ubuntu ou libpulse no Arch) e systemd de usuário. Se faltar algum componente, o instalador informa antes de alterar o áudio. O pacote inclui o código-fonte; o instalador compila os dois plugins para o computador de destino. Não é um executável independente de dependências.
+Dependências: Python 3, PyQt5, gcc e cabeçalhos de desenvolvimento da libc, PipeWire 1.6+, WirePlumber 0.5.15+, pipewire-pulse, pw-cli, pw-dump e pactl (pulseaudio-utils no Debian/Ubuntu ou libpulse no Arch) e systemd de usuário. Se faltar algum componente, o instalador informa antes de alterar o áudio. O pacote inclui o código-fonte; o instalador compila os plugins para o computador de destino. Não é um executável independente de dependências.
 
 ## Atualizações automáticas
 
@@ -97,15 +99,15 @@ Você pode abrir o programa pelo menu quando quiser, mesmo com a inicialização
 
 ## Ganho e equalizador independentes
 
-A aba **Volume e ganho** reúne o volume do KDE, a curva de volume e o **Reforço antes da proteção**, de 0 a 18 dB. O valor inicial de 18 dB preserva o som das versões anteriores. A pré-equalização leve continua nessa etapa, seguida pela compressão e proteção de picos.
+A aba **Volume e ganho** reúne a curva de volume e o **Reforço máximo adaptativo** (0–18 dB). Esse valor não é um ganho fixo: fontes baixas recebem reforço quando existe margem, enquanto gravações já fortes recebem menos. Não há compressor antes do controle de volume nem duas etapas de limitação.
 
-A aba **Equalizador** oferece **Neutro, Música, Rock, Pop, Funk, Filme e Voz**, além de **Personalizado**. As dez bandas vão de 31,5 Hz a 16 kHz, com ajuste de −6 a +6 dB em passos de 0,5 dB. Os presets são curvas próprias do Open Audio Bridge, não reproduções de Dolby Atmos ou de outro produto.
+Na aba **Experiência musical**, escolha **Música — Quente**, **Eletrônica — Graves e clareza** ou **Sem processamento musical**. Os dois modos analisam lentamente a distribuição de energia da gravação e adicionam reforços moderados de graves e detalhes; não cortam o grave original para obter volume. A **Amplitude estéreo** (0–25%) expande suavemente apenas a componente lateral acima dos graves, preservando o centro e sinais mono. São efeitos próprios para reprodução estéreo, não um decodificador ou renderizador Dolby Atmos.
 
-Escolher um preset ativa o equalizador. Mover uma banda muda o preset para Personalizado. Desmarcar **Ativar equalizador de timbre** desliga apenas essa etapa, mantendo ganho, volume e curva salvos. Uma troca de preset ou ajuste pode causar uma pausa curta enquanto o processamento é substituído com a saída silenciada. Os ajustes persistem ao fechar a janela, reiniciar o serviço e atualizar o programa.
+Na aba **Equalizador**, selecione um preset (Neutro, Música, Rock, Pop, Funk, Filme, Voz) ou ajuste individualmente as dez bandas de −6 a +6 dB. A equalização manual e o modo musical são independentes e são preservados nas atualizações.
 
-A cadeia é: **pré-equalização → ganho e dinâmica → volume do sistema → equalizador de timbre → proteção final**. A proteção permanece depois do equalizador, com teto de amostra de −4 dBFS. Reforçar bandas pode fazer o limitador atuar mais e reduzir a dinâmica; proteção de picos não significa ausência de qualquer distorção ou efeito perceptível.
+Cadeia: **modo musical opcional → EQ manual opcional → ganho adaptativo, volume e proteção antecipada de picos em um único estágio**. O estágio final utiliza estimativa de true peak com interpolação 4×, margem adicional e atraso de aproximadamente 6–7 ms a 48 kHz; a recuperação lenta do ganho evita nivelar o áudio a cada batida. O teto nominal é −1,2 dBTP; nenhum limitador garante ausência de distorção no alto-falante ou amplificador físico. O resultado de uma gravação já no máximo digital não pode crescer indefinidamente sem reduzir dinâmica ou usar ganho físico.
 
-Ao atualizar, o equalizador começa desligado para manter o som anterior. Se a janela antiga já estava aberta durante a instalação, use **Sair da interface** na bandeja e abra novamente pelo menu para carregar a interface atualizada.
+Ao atualizar, a curva manual, o destino, a preferência de início e o reforço são preservados. Os novos modos começam desligados para permitir comparação direta. Se a interface antiga estiver aberta, ela se recarrega quando não há alterações pendentes.
 
 ## Desinstalar
 
@@ -115,7 +117,7 @@ Não use os comandos de instalação da versão 0.1 enquanto a versão gráfica 
 
 ## O que mudou no volume
 
-A nova versão não aumenta novamente o ganho antes do limitador. Com as configurações iniciais, ela preserva a equalização e a dinâmica do perfil anterior `loudness-safe` (+18 dB, teto de amostra −4 dBFS) e muda a curva do controle depois desse processamento. Uma proteção final vem depois do controle.
+A curva de volume continua igual. O novo processador usa o ganho solicitado como máximo, aplica um orçamento de picos progressivo para manter controle útil em gravações fortes e evita limitar o áudio duas vezes.
 
 | Controle novo | Escala antiga equivalente |
 |---:|---:|
@@ -132,7 +134,7 @@ A nova versão não aumenta novamente o ganho antes do limitador. Com as configu
 
 A partir de 20%, a relação é `escala original equivalente = controle + 20`. Abaixo disso, `equivalente = 2 × controle`, ligando o silêncio à curva de forma contínua. São **20 pontos percentuais**, não 20% de ganho nem o dobro do volume. Como o PipeWire usa volume cúbico, a amplitude nessa etapa é `(equivalente / 100)³`. Em sinal com margem, subir de 80% para 100% acrescenta aproximadamente 4,75 dB.
 
-A proteção final continua com teto de amostra −4 dBFS. Se o sinal amplificado atingir esse teto, o limitador reduz os picos e pode alterar a dinâmica; a tabela descreve o ganho solicitado antes dessa proteção, não uma garantia de volume acústico ilimitado. Não há promessa de reproduzir drivers do Windows ou eliminar distorção prévia. O controle permanece limitado a 150%.
+A tabela descreve o ganho máximo solicitado, antes da adaptação de picos. Em uma gravação forte, o volume se aproxima do limite digital ao chegar a 100%; acima disso, ganho adicional só é possível em conteúdo que ainda tenha margem. O controle permanece limitado a 150%.
 
 ## Validação
 
@@ -140,11 +142,9 @@ Testes automatizados cobrem: curva, preservação de forma de onda, silêncio, b
 
 Os testes automatizados verificam a progressão em toda a faixa, inclusive entre 80% e 100%, o equivalente a 120% em 100%, a migração sem salto de nível e a troca de curvas com limite. A referência é o perfil 0.1 `loudness-safe` seguido da atenuação cúbica do PipeWire; não é uma medição acústica ou comparação física com o Windows.
 
-Na validação local com o processamento nativo em saída de teste isolada das saídas físicas, sinais baixos confirmaram 80% equivalente ao antigo 100% e +4,75 dB ao subir de 80% para 100%. Em sinal forte a 150%, o pico ficou no teto de −4 dBFS; 0% produziu silêncio. O limitador é de amostras com margem de −4 dBFS, não um true-peak certificado para todo conteúdo.
+Os testes do novo plugin usam sinais multitonais com graves fortes, agudos simultâneos, picos entre amostras, balanço estéreo, silêncio imediato, mudanças de volume, tamanhos de bloco variáveis e diferentes taxas de amostragem. A inspeção do sinal digital não substitui a comparação auditiva ou medição acústica da caixa de som.
 
-A integração real foi verificada alternando HyperX e HDMI como padrão, selecionando destino fixo, controlando o volume por ambos os caminhos e desativando/reativando o efeito. O ganho do microfone permaneceu inalterado. O perfil de hardware só modifica os controles de reprodução, com cópia privada reversível; o perfil de captura permanece original.
-
-A validação da versão 0.4 mediu +6 dB no centro de uma banda ajustada em +6 dB, com pouca alteração distante dessa banda; redução de 18 dB ao levar o reforço de 18 para 0 dB; bypass e preset Neutro idênticos ao som anterior. Mesmo com todas as bandas em +6 dB e volume de 150%, o teto de amostra permaneceu em −4 dBFS. Esses testes usaram sinais gerados em uma saída isolada, sem tocar nos alto-falantes.
+A integração nativa preserva os controles de volume, roteamento e saída padrão do sistema; a configuração de captura não é alterada. Os modos musicais incluem testes de bypass exato, limites de reforço por banda, estabilidade e preservação de mono/centro.
 
 ## Desenvolvimento
 
@@ -160,7 +160,7 @@ cd dist
 sha256sum -c SHA256SUMS
 ```
 
-O script compila os dois plugins com avisos tratados como erros e executa os testes em uma cópia temporária. Só gera `dist/open-audio-bridge-0.5.2.zip`, `dist/open-audio-bridge-installer_0.5.2_all.deb` e `dist/SHA256SUMS` se tudo passar. O build requer também `dpkg-deb` (pacote `dpkg`). O pacote preserva a permissão de execução do lançador e não inclui configurações pessoais, bibliotecas compiladas ou caches. A mesma fonte gera o mesmo ZIP. Também gera `dist/arch/PKGBUILD` com o SHA256 desse ZIP; em um Arch com `base-devel`, copie o ZIP para essa pasta e execute `makepkg -si` sem root para construir e instalar o pacote nativo.
+O script compila os plugins com avisos tratados como erros e executa os testes em uma cópia temporária. Só gera `dist/open-audio-bridge-0.6.0.zip`, `dist/open-audio-bridge-installer_0.6.0_all.deb` e `dist/SHA256SUMS` se tudo passar. O build requer também `dpkg-deb` (pacote `dpkg`). O pacote preserva a permissão de execução do lançador e não inclui configurações pessoais, bibliotecas compiladas ou caches. A mesma fonte gera o mesmo ZIP. Também gera `dist/arch/PKGBUILD` com o SHA256 desse ZIP; em um Arch com `base-devel`, copie o ZIP para essa pasta e execute `makepkg -si` sem root para construir e instalar o pacote nativo.
 
 O GitHub Actions executa esse processo em Ubuntu 24.04 a cada push, pull request ou execução manual. Uma segunda etapa usa o ambiente oficial `archlinux:base-devel`, executa os testes novamente e instala o pacote com pacman para verificar o iniciador gráfico. Os testes não precisam de placa de som e não alteram o áudio da máquina. A validação do CI cobre o processamento e as simulações de configuração/interface; integração com o servidor de áudio e dispositivos reais continua sendo uma verificação local.
 

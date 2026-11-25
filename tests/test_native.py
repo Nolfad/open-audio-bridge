@@ -13,13 +13,15 @@ class NativeControlTests(unittest.TestCase):
   items=[{'name':'alsa_output.a'},{'name':'alsa_output.b'}]
   self.assertEqual(native.selected_names({'target':'default'},items),{'alsa_output.a','alsa_output.b'})
   self.assertEqual(native.selected_names({'target':'alsa_output.b'},items),{'alsa_output.b'})
- def test_graph_owns_native_volume_and_final_guard(self):
+ def test_graph_owns_native_volume_and_integrated_protection(self):
   graph=native.graph('boost',[.064,.008],False)
   self.assertEqual(graph['capture.volumes'][0]['control'],'oab_native_volume:Volume L')
-  self.assertEqual(graph['outputs'],['oab_native_guard:Output L','oab_native_guard:Output R'])
+  self.assertEqual(graph['outputs'],['oab_native_volume:Output L','oab_native_volume:Output R'])
   volume=next(x for x in graph['nodes'] if x['name']=='oab_native_volume')
   self.assertAlmostEqual(volume['control']['Volume L'],.4)
   self.assertAlmostEqual(volume['control']['Volume R'],.2)
+  self.assertEqual(volume['plugin'],str(native.PLUGINS['clean']))
+  self.assertEqual(volume['label'],'oab_clean_gain')
  def test_volume_writes_actual_default_device_not_virtual(self):
   with mock.patch.object(native,'settings',return_value={'target':'default'}), mock.patch.object(native.b,'default_sink',return_value='alsa_output.headset'),mock.patch.object(native.b,'sink_by_name',return_value={'name':'alsa_output.headset','volume':{'L':{'value':40000},'R':{'value':20000}}}),mock.patch.object(native.b,'run') as run:
    native.set_volume(40)

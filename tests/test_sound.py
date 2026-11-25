@@ -5,26 +5,41 @@ import bridge,native,sound
 
 class SoundTests(unittest.TestCase):
  def test_default_keeps_existing_sound(self):
-  self.assertEqual(sound.normalize(None),{'drive_db':18.,'eq_enabled':False,'preset':'flat','bands':[0.]*10})
+  self.assertEqual(sound.normalize(None),{'drive_db':18.,'eq_enabled':False,'preset':'flat','bands':[0.]*10,'music_mode':'off','width':0.0})
   graph=bridge.make_graph(Path('.'))
-  self.assertNotIn('tone',[n['name'] for n in graph['nodes']])
+  self.assertEqual([n['name'] for n in graph['nodes']],['volume'])
+  self.assertEqual(graph['inputs'],['volume:Input L','volume:Input R'])
  def test_invalid_controls_are_rejected(self):
-  for value in [{'drive_db':float('nan')},{'drive_db':19},{'bands':[0]*9},{'bands':[7]*10},{'bands':[float('inf')]*10},{'preset':'unknown'},{'eq_enabled':'false'}]:
+  for value in [{'drive_db':float('nan')},{'drive_db':19},{'bands':[0]*9},{'bands':[7]*10},{'bands':[float('inf')]*10},{'preset':'unknown'},{'eq_enabled':'false'},{'music_mode':'fake'},{'width':26},{'width':float('nan')}]:
    with self.subTest(value=value),self.assertRaises(ValueError):sound.normalize(value)
  def test_presets_do_not_change_drive(self):
   for preset in sound.PRESETS:
    state=sound.normalize({'drive_db':5,'eq_enabled':True,'preset':preset})
    self.assertEqual(state['drive_db'],5)
    self.assertEqual(len(state['bands']),10)
- def test_equalizer_is_after_volume_before_final_guard(self):
+ def test_one_clean_gain_after_user_equalizer(self):
   g=bridge.make_graph(Path('.'),'boost',{'drive_db':7,'eq_enabled':True,'preset':'rock'})
   byname={n['name']:n for n in g['nodes']}
-  self.assertEqual(byname['oab_dyn']['control']['Drive (dB)'],7)
-  self.assertEqual(byname['guard']['control']['Ceiling (dB)'],-4)
-  self.assertIn({'output':'volume:Output L','input':'tone:In 1'},g['links'])
-  self.assertIn({'output':'tone:Out 2','input':'guard:Input R'},g['links'])
-  self.assertNotIn({'output':'volume:Output L','input':'guard:Input L'},g['links'])
-  self.assertEqual(g['outputs'],['guard:Output L','guard:Output R'])
+  self.assertEqual(set(byname),{'tone','volume'})
+  self.assertEqual(byname['volume']['label'],'oab_clean_gain')
+  self.assertEqual(byname['volume']['control']['Drive (dB)'],7)
+  self.assertEqual(byname['volume']['control']['Ceiling (dB)'],-1.2)
+  self.assertIn({'output':'tone:Out 1','input':'volume:Input L'},g['links'])
+  self.assertIn({'output':'tone:Out 2','input':'volume:Input R'},g['links'])
+  self.assertEqual(g['inputs'],['tone:In 1','tone:In 2'])
+  self.assertEqual(g['outputs'],['volume:Output L','volume:Output R'])
+  self.assertEqual(byname['tone']['config']['filters'],sound.filters({'drive_db':7,'eq_enabled':True,'preset':'rock'}))
+ def test_optional_music_and_width_before_manual_eq_and_protection(self):
+  settings={'drive_db':18,'eq_enabled':True,'preset':'rock','music_mode':'warm','width':12}
+  state=sound.normalize(settings);self.assertEqual(state['music_mode'],'warm');self.assertEqual(state['width'],12)
+  g=bridge.make_graph(Path('.'),'boost',settings)
+  n={v['name']:v for v in g['nodes']};self.assertEqual(n['music']['control'],{'Mode':1.,'Width (%)':12.})
+  self.assertEqual(n['music']['label'],'oab_music_enhance')
+  self.assertEqual(g['inputs'],['music:Input L','music:Input R'])
+  self.assertIn({'output':'music:Output L','input':'tone:In 1'},g['links'])
+  self.assertIn({'output':'tone:Out 2','input':'volume:Input R'},g['links'])
+  self.assertEqual(g['outputs'],['volume:Output L','volume:Output R'])
+  self.assertEqual(state['bands'],list(sound.PRESETS['rock'][1]))
  def test_custom_curve_and_independent_bypass(self):
   bands=[-2,-1,0,1,2,3,2,1,0,-1]
   state=sound.normalize({'drive_db':9,'eq_enabled':False,'preset':'custom','bands':bands})

@@ -13,6 +13,7 @@ OWNED=b.STATE/'native-owned.json'
 READY=b.STATE/'native-ready.json'
 KEY='audioconvert.filter-graph.77'
 PLUGINS={s:b.HOME_DIR/f'.ladspa/liboab_native_03_{s}.so' for s in ['dynamics','volume']}
+PLUGINS.update({s:b.HOME_DIR/f'.ladspa/liboab_native_06_{s}.so' for s in ['clean','music']})
 MARKER='# Managed by Open Audio Bridge native'
 ACP_PATHS=Path(os.environ.get('XDG_CONFIG_HOME',str(b.HOME_DIR/'.config')))/'alsa-card-profile/mixer/paths'
 
@@ -57,7 +58,7 @@ def graph(curve,levels,mute,sound_config=None):
  g=b.make_graph(Path('.'),curve,sound_config)
  for node in g['nodes']:
   node['name']='oab_native_'+node['name']
-  if node.get('type')=='ladspa':node['plugin']=str(PLUGINS['volume' if node['name']=='oab_native_volume' else 'dynamics'])
+  if node.get('type')=='ladspa':node['plugin']=str(PLUGINS[{'oab_clean_gain':'clean','oab_music_enhance':'music'}[node['label']]])
   if node['name']=='oab_native_volume':
    node['control'].update({'Volume L':0 if mute else levels[0]**(1/3),'Volume R':0 if mute else levels[1]**(1/3)})
  for link in g['links']:
@@ -337,8 +338,9 @@ def install(source,preserve_enabled=False,scheduled=False):
  before=settings();is_native=before.get('routing')=='native';legacy=bool(b.read(b.BASELINE)) and not is_native
  if b.APP.exists() and not is_native and not legacy:raise b.BridgeError('Aplicação existente sem registro gerenciado; arquivos preservados.')
  if not candidates(b.sinks()):raise b.BridgeError('Conecte uma saída estéreo para preparar a integração nativa.')
+ baseline=b.read(BASE,{})
  for path in [RULE,*PLUGINS.values()]:
-  if path.exists() and not BASE.exists():raise b.BridgeError('Arquivo não gerenciado preservado: '+str(path))
+  if path.exists() and (not BASE.exists() or (path in PLUGINS.values() and str(path) not in baseline.get('files',{}))):raise b.BridgeError('Arquivo não gerenciado preservado: '+str(path))
  stage=b.APP.with_name('app.native-staging');shutil.rmtree(stage,ignore_errors=True)
  shutil.copytree(source,stage,ignore=shutil.ignore_patterns('.git','dist','lib','__pycache__','mixer','docs'))
  b.compile_plugins(stage)
@@ -364,6 +366,8 @@ def install(source,preserve_enabled=False,scheduled=False):
    snapshots=dict(snap);snapshots.update(original.get('files',{}))
    # The original virtual service must not be restored by native uninstall.
    b.save(BASE,{'files':snapshots,'volumes':level_snapshot(),'default':default if default!=b.SINK else original.get('default')})
+  else:
+   baseline=b.read(BASE);baseline['files'].update({str(path):snap[str(path)] for path in PLUGINS.values() if str(path) not in baseline['files']});b.save(BASE,baseline)
   if b.APP.exists():shutil.rmtree(b.APP)
   stage.rename(b.APP)
   for stem,path in PLUGINS.items():install_plugin(b.APP/f'lib/liboab_{stem}.so',path)

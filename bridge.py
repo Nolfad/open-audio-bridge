@@ -2,7 +2,7 @@
 """Open Audio Bridge desktop lifecycle and PipeWire graph. No root required."""
 from pathlib import Path
 import argparse,base64,fcntl,json,math,os,shutil,signal,subprocess,sys,time,tempfile
-VERSION='0.5.2'
+VERSION='0.6.0'
 MAX_VOLUME=150
 ROOT=Path(__file__).resolve().parent
 HOME_DIR=Path.home()
@@ -80,24 +80,24 @@ def migrate_volume_settings(settings):
  return result
 
 def make_graph(lib,curve='boost',sound_config=None):
- import oab,sound
+ import sound
  controls=sound.normalize(sound_config)
- p=oab.profile_load('loudness-safe');p['drive_db']=controls['drive_db'];p['ceiling_db']=-4
- g=oab.graph(p,lib/'liboab_dynamics.so')
- g['nodes'] += [
-  {'type':'ladspa','name':'volume','plugin':str(lib/'liboab_volume.so'),'label':'oab_volume_curve','control':{'Volume L':0.,'Volume R':0.,'Curve':1. if curve=='boost' else 0.}},
-  {'type':'ladspa','name':'guard','plugin':str(lib/'liboab_dynamics.so'),'label':'oab_stereo_dynamics','control':{'Drive (dB)':0.,'Threshold (dB)':0.,'Ratio':1.,'Attack (ms)':8.,'Release (ms)':160.,'Ceiling (dB)':-4.}}]
- for c in ['L','R']:
-  g['links'] += [{'output':'oab_dyn:Output '+c,'input':'volume:Input '+c},{'output':'volume:Output '+c,'input':'guard:Input '+c}]
+ # Linear timbre changes and optional adaptive stereo enhancement are made
+ # in float before the single, volume-aware, lookahead protection stage.
+ nodes=[];links=[];inputs=None;previous=None
+ def append(node,ins,outs):
+  nonlocal inputs,previous
+  nodes.append(node)
+  if previous is None:inputs=ins
+  else:links.extend({'output':a,'input':b} for a,b in zip(previous,ins))
+  previous=outs
+ if controls['music_mode']!='off' or controls['width']>0:
+  append({'type':'ladspa','name':'music','plugin':str(lib/'liboab_music.so'),'label':'oab_music_enhance','control':{'Mode':float(sound.MUSIC_MODES[controls['music_mode']][1]),'Width (%)':controls['width']}},['music:Input L','music:Input R'],['music:Output L','music:Output R'])
  tone_filters=sound.filters(controls)
  if tone_filters:
-  g['nodes'].append({'type':'builtin','name':'tone','label':'param_eq','config':{'filters':tone_filters}})
-  g['links']=[link for link in g['links'] if not link['output'].startswith('volume:')]
-  for channel,number in [('L',1),('R',2)]:
-   g['links'] += [{'output':'volume:Output '+channel,'input':f'tone:In {number}'},{'output':f'tone:Out {number}','input':'guard:Input '+channel}]
- g['outputs']=['guard:Output L','guard:Output R']
- g['capture.volumes']=[{'control':'volume:Volume '+c,'min':0.,'max':1.,'scale':'cubic'} for c in ['L','R']]
- return g
+  append({'type':'builtin','name':'tone','label':'param_eq','config':{'filters':tone_filters}},['tone:In 1','tone:In 2'],['tone:Out 1','tone:Out 2'])
+ append({'type':'ladspa','name':'volume','plugin':str(lib/'liboab_clean.so'),'label':'oab_clean_gain','control':{'Volume L':0.,'Volume R':0.,'Curve':1. if curve=='boost' else 0.,'Drive (dB)':controls['drive_db'],'Ceiling (dB)':-1.2}},['volume:Input L','volume:Input R'],['volume:Output L','volume:Output R'])
+ return {'nodes':nodes,'links':links,'inputs':inputs,'outputs':previous,'capture.volumes':[{'control':'volume:Volume '+c,'min':0.,'max':1.,'scale':'cubic'} for c in ['L','R']]}
 
 def make_config(lib,target,curve,percent):
  validate_percent(percent)
@@ -160,7 +160,7 @@ def status():
 
 def compile_plugins(where):
  lib=where/'lib';lib.mkdir(exist_ok=True)
- for stem in ['dynamics','volume']:
+ for stem in ['dynamics','volume','clean','music']:
   run(['gcc','-O2','-fPIC','-shared','-Wall','-Wextra','-Werror','-std=c11',str(where/f'src/oab_{stem}.c'),'-lm','-o',str(lib/f'liboab_{stem}.so')],timeout=30)
 
 def prerequisites():

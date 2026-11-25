@@ -9,12 +9,12 @@ ROOT=Path(__file__).resolve().parent
 class Window(W.QMainWindow):
  restart_requested=QtCore.pyqtSignal(bool)
  def __init__(self,tray=True):
-  super().__init__();self.setWindowTitle('Open Audio Bridge');self.resize(650,610);self.busy=False;self.last={};self.queue=[];self.use_tray=tray;self.restart_pending=False
+  super().__init__();self.setWindowTitle('Open Audio Bridge');self.resize(680,630);self.busy=False;self.last={};self.queue=[];self.use_tray=tray;self.restart_pending=False
   icon=QtGui.QIcon.fromTheme('audio-volume-high')
   self.setWindowIcon(icon if not icon.isNull() else self.style().standardIcon(W.QStyle.SP_MediaVolume))
   body=W.QWidget();self.setCentralWidget(body);layout=W.QVBoxLayout(body);layout.setContentsMargins(28,24,28,24);layout.setSpacing(16)
   title=W.QLabel('Seu volume, do jeito certo');title.setStyleSheet('font-size:23px;font-weight:600');layout.addWidget(title)
-  subtitle=W.QLabel('Reforço com proteção de picos na própria saída de áudio do KDE.');subtitle.setWordWrap(True);layout.addWidget(subtitle)
+  subtitle=W.QLabel('Processamento musical e ganho adaptativo na própria saída do KDE.');subtitle.setWordWrap(True);layout.addWidget(subtitle)
   self.status_label=W.QLabel('Verificando áudio…');layout.addWidget(self.status_label)
   outer=layout;self.tabs=W.QTabWidget();outer.addWidget(self.tabs)
   volume_page=W.QWidget();layout=W.QVBoxLayout(volume_page);layout.setSpacing(16);self.tabs.addTab(volume_page,'Volume e ganho')
@@ -22,10 +22,10 @@ class Window(W.QMainWindow):
   self.curve=W.QComboBox();self.curve.addItem('Reforçada — com proteção de picos','boost');self.curve.addItem('Padrão — escala original','normal');form.addRow('Curva de volume',self.curve);layout.addLayout(form)
   row=W.QHBoxLayout();self.slider=W.QSlider(QtCore.Qt.Horizontal);self.slider.setRange(0,MAX_VOLUME);self.slider.setSingleStep(1);self.slider.setPageStep(5);self.number=W.QLabel('—%');self.number.setMinimumWidth(50);row.addWidget(self.slider);row.addWidget(self.number);layout.addLayout(row)
   self.mute=W.QCheckBox('Silenciar');layout.addWidget(self.mute)
-  drive_row=W.QFormLayout();self.drive=W.QDoubleSpinBox();self.drive.setRange(0,18);self.drive.setSuffix(' dB');self.drive.setDecimals(1);self.drive.setValue(18);drive_row.addRow('Reforço antes da proteção',self.drive);layout.addLayout(drive_row)
-  drive_note=W.QLabel('A pré-equalização e a proteção de picos acompanham o ganho. Os presets de timbre ficam na aba Equalizador e não alteram este ajuste.');drive_note.setWordWrap(True);layout.addWidget(drive_note)
+  drive_row=W.QFormLayout();self.drive=W.QDoubleSpinBox();self.drive.setRange(0,18);self.drive.setSuffix(' dB');self.drive.setDecimals(1);self.drive.setValue(18);drive_row.addRow('Reforço máximo adaptativo',self.drive);layout.addLayout(drive_row)
+  drive_note=W.QLabel('O reforço usa a margem disponível do áudio. Uma única proteção antecipada de picos preserva a dinâmica e evita esmagar graves e agudos. Fontes já fortes recebem menos ganho.');drive_note.setWordWrap(True);layout.addWidget(drive_note)
   note=W.QLabel('Este é o mesmo volume da saída no KDE, sem controle ou saída extra.\nPadrão do sistema acompanha a saída escolhida no KDE. Uma saída fixa recebe o efeito sem mudar a saída padrão.\nFechar esta janela mantém o ícone na bandeja e o áudio ativo.');note.setWordWrap(True);note.setStyleSheet('color:#888;');layout.addWidget(note)
-  layout.addStretch();layout=outer;self.build_equalizer();self.build_updates();self.build_settings();buttons=W.QHBoxLayout();self.toggle=W.QPushButton('Ativar');self.refresh_button=W.QPushButton('Atualizar saídas');buttons.addWidget(self.toggle);buttons.addWidget(self.refresh_button);buttons.addStretch();layout.addLayout(buttons)
+  layout.addStretch();layout=outer;self.build_music();self.build_equalizer();self.build_updates();self.build_settings();buttons=W.QHBoxLayout();self.toggle=W.QPushButton('Ativar');self.refresh_button=W.QPushButton('Atualizar saídas');buttons.addWidget(self.toggle);buttons.addWidget(self.refresh_button);buttons.addStretch();layout.addLayout(buttons)
   self.action=QtCore.QProcess(self);self.action.finished.connect(self.action_done);self.action.errorOccurred.connect(self.process_error)
   self.reader=QtCore.QProcess(self);self.reader.finished.connect(self.status_done)
   self.timer=QtCore.QTimer(self);self.timer.timeout.connect(self.refresh);self.timer.start(1500)
@@ -84,6 +84,20 @@ class Window(W.QMainWindow):
  def request_restart(self):
   if self.pending_changes():self.restart_pending=False;return
   self.restart_requested.emit(self.isVisible())
+ def build_music(self):
+  page=W.QWidget();layout=W.QVBoxLayout(page);layout.setSpacing(16)
+  heading=W.QLabel('Experiência musical');heading.setStyleSheet('font-size:18px;font-weight:600');layout.addWidget(heading)
+  form=W.QFormLayout();self.music_mode=W.QComboBox()
+  for key,(label,_) in sound.MUSIC_MODES.items():self.music_mode.addItem(label,key)
+  form.addRow('Modo de áudio',self.music_mode)
+  self.width=W.QSpinBox();self.width.setRange(0,25);self.width.setSuffix('%');self.width.setToolTip('Expande apenas a componente estéreo acima dos graves, sem criar som espacial multicanal.');form.addRow('Amplitude estéreo',self.width);layout.addLayout(form)
+  text=W.QLabel('Música — Quente: reforço adaptativo e suave de graves e detalhes.\nEletrônica: mais presença nos graves e definição dos agudos.\nSem processamento musical: mantém o timbre original, além do equalizador manual se estiver habilitado.');text.setWordWrap(True);layout.addWidget(text)
+  note=W.QLabel('Os modos analisam o conteúdo e moderam o reforço extra quando a música já possui energia nessa faixa. A amplitude estéreo mantém os graves centrados e não altera gravações mono. Os ajustes de equalização manual continuam independentes.');note.setWordWrap(True);layout.addWidget(note);layout.addStretch();self.tabs.addTab(page,'Experiência musical')
+  self.music_mode.activated.connect(self.music_changed);self.width.valueChanged.connect(self.width_changed)
+ def music_changed(self,index):
+  self.sound_state['music_mode']=self.music_mode.itemData(index);self.sound_timer.start(350)
+ def width_changed(self,value):
+  self.sound_state['width']=value;self.sound_timer.start(350)
  def build_equalizer(self):
   self.sound_state=sound.normalize();page=W.QWidget();layout=W.QVBoxLayout(page);layout.setSpacing(16)
   self.eq_enabled=W.QCheckBox('Ativar equalizador de timbre');layout.addWidget(self.eq_enabled)
@@ -98,11 +112,13 @@ class Window(W.QMainWindow):
    self.eq_sliders.append(slider);self.eq_values.append(value)
    slider.valueChanged.connect(lambda value,i=index:self.band_changed(i,value));slider.sliderReleased.connect(lambda:self.sound_timer.start(350))
   layout.addLayout(bars)
-  note=W.QLabel('Bandas em Hz · ajuste de −6 a +6 dB.\nO equalizador muda o timbre depois do ganho. A proteção final continua ativa; reforços fortes podem reduzir a dinâmica. Desligar aqui preserva o ganho e guarda a curva.');note.setWordWrap(True);layout.addWidget(note)
+  note=W.QLabel('Bandas em Hz · ajuste de −6 a +6 dB.\nO equalizador muda o timbre antes da proteção de picos. Reforços fortes usam mais margem digital; desligar aqui guarda a curva manual e não desativa o modo musical.');note.setWordWrap(True);layout.addWidget(note)
   self.tabs.addTab(page,'Equalizador');self.eq_enabled.toggled.connect(self.eq_toggled);self.eq_preset.activated.connect(self.preset_changed)
   self.sync_sound(None)
  def sync_sound(self,value):
   self.sound_state=sound.normalize(value)
+  self.music_mode.blockSignals(True);self.music_mode.setCurrentIndex(self.music_mode.findData(self.sound_state['music_mode']));self.music_mode.blockSignals(False)
+  self.width.blockSignals(True);self.width.setValue(round(self.sound_state['width']));self.width.blockSignals(False)
   for widget,value in [(self.drive,self.sound_state['drive_db']),(self.eq_enabled,self.sound_state['eq_enabled'])]:
    widget.blockSignals(True)
    if widget is self.drive:widget.setValue(value)
@@ -128,7 +144,7 @@ class Window(W.QMainWindow):
   W.QApplication.instance().quit()
  def show_window(self):self.showNormal();self.raise_();self.activateWindow()
  def controls(self,enabled):
-  for x in [self.device,self.curve,self.slider,self.mute,self.toggle,self.remove,self.drive,self.eq_enabled,self.eq_preset,self.update_auto,self.update_button,self.startup]:x.setEnabled(enabled)
+  for x in [self.device,self.curve,self.slider,self.mute,self.toggle,self.remove,self.drive,self.eq_enabled,self.eq_preset,self.music_mode,self.width,self.update_auto,self.update_button,self.startup]:x.setEnabled(enabled)
   for slider in self.eq_sliders:slider.setEnabled(enabled and self.eq_enabled.isChecked())
  def volume_changed(self,value):
   self.number.setText(f'{value}%');self.volume_timer.start(180)
