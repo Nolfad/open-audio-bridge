@@ -1,3 +1,17 @@
+# 1.0.0 — 25/11/2026
+
+**Primeira versão estável do Open Audio Bridge.**
+
+A versão 1.0.0 consolida a experiência validada pelo mantenedor e pelos primeiros usuários. É a mesma implementação aprovada na 0.7.2, sem mudanças no processamento sonoro ou na interface.
+
+- Integração nativa com as saídas e o volume do sistema, acompanhando automaticamente a saída padrão ou permitindo selecionar uma saída fixa.
+- Ganho adaptativo com proteção de picos, modos musicais, amplitude estéreo e equalizador independente de dez bandas com presets.
+- Interface responsiva, transições suaves entre presets, medidores de energia por banda em tempo real e ícone de bandeja com início opcional.
+- Instaladores de arquivo único para Debian/Ubuntu/Tuxedo OS compatíveis e Arch Linux, com atualizações automáticas e preservação das instalações gerenciadas.
+- Requisitos mantidos: PipeWire 1.6+ e WirePlumber 0.5.15+. Validação em Tuxedo OS/KDE; empacotamento e abertura do instalador também testados no Arch pelo CI.
+
+As próximas versões serão dedicadas a melhorias e correções de acordo com o uso real e a compatibilidade dos sistemas.
+
 # 0.7.2 — 25/11/2026
 
 - Interface do equalizador permanece responsiva ao ativar, desativar, trocar presets e ajustar as bandas, mesmo durante a aplicação do processamento. Alterações sucessivas são reunidas na configuração mais recente, sem que respostas atrasadas sobrescrevam os ajustes.
