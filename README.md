@@ -1,6 +1,6 @@
-# Open Audio Bridge 1.0.0
+# Open Audio Bridge 1.0.1
 
-**Primeira versão estável.** A versão 1.0.0 consolida a interface e o processamento de áudio já aprovados na 0.7.2, sem alterar as curvas, o equalizador ou o motor de áudio.
+A série 1.0 consolida a interface e o processamento de áudio já aprovados na 0.7.2. A versão 1.0.1 corrige a restauração do volume e oferece avisos de novas versões, sem alterar as curvas, o equalizador ou o motor de áudio.
 
 Controle de volume integrado ao KDE, com instalação gráfica e restauração do áudio anterior. Validado em Tuxedo OS, com PipeWire 1.6.8 e WirePlumber 0.5.15.
 
@@ -8,11 +8,11 @@ Controle de volume integrado ao KDE, com instalação gráfica e restauração d
 
 ## Baixar e instalar
 
-**Tuxedo OS, Ubuntu ou Debian compatível: [baixar instalador .deb — arquivo único](https://github.com/Nolfad/open-audio-bridge/releases/download/v1.0.0/open-audio-bridge-installer_1.0.0_all.deb).**
+**Tuxedo OS, Ubuntu ou Debian compatível: [baixar instalador .deb — arquivo único](https://github.com/Nolfad/open-audio-bridge/releases/download/v1.0.1/open-audio-bridge-installer_1.0.1_all.deb).**
 
 Baixe somente o `.deb`: ele já contém o programa. Dê dois cliques no arquivo para abrir o gerenciador de programas e instalar. Depois abra **Instalar ou atualizar Open Audio Bridge** no menu e clique em **Instalar e ativar**. Não precisa baixar nem extrair o ZIP. O sistema pode baixar dependências e pedir a senha administrativa durante a instalação do pacote.
 
-**Arch Linux: [baixar pacote .pkg.tar.zst](https://github.com/Nolfad/open-audio-bridge/releases/download/v1.0.0/open-audio-bridge-installer-1.0.0-1-any.pkg.tar.zst).** Veja as instruções abaixo.
+**Arch Linux: [baixar pacote .pkg.tar.zst](https://github.com/Nolfad/open-audio-bridge/releases/download/v1.0.1/open-audio-bridge-installer-1.0.1-1-any.pkg.tar.zst).** Veja as instruções abaixo.
 
 A [última release](https://github.com/Nolfad/open-audio-bridge/releases/latest) também oferece o ZIP como alternativa. Os downloads são públicos, sem login no GitHub. O arquivo `SHA256SUMS` permite conferir a integridade dos pacotes.
 
@@ -20,7 +20,7 @@ Para testar alterações ainda não lançadas, há pacotes temporários em [Acti
 
 ## Instalar com .deb
 
-1. Baixe **open-audio-bridge-installer_1.0.0_all.deb** e abra no gerenciador de programas. Ele instala as dependências; essa etapa usa a autorização administrativa normal do sistema.
+1. Baixe **open-audio-bridge-installer_1.0.1_all.deb** e abra no gerenciador de programas. Ele instala as dependências; essa etapa usa a autorização administrativa normal do sistema.
 2. Abra **Instalar ou atualizar Open Audio Bridge** no menu e clique em **Instalar e ativar**.
 3. Depois use **Open Audio Bridge** no menu ou o ícone da bandeja.
 
@@ -30,11 +30,11 @@ São necessários **PipeWire 1.6+ e WirePlumber 0.5.15+**. O .deb declara essas 
 
 ## Instalar no Arch Linux
 
-1. Baixe **open-audio-bridge-installer-1.0.0-1-any.pkg.tar.zst** da release.
+1. Baixe **open-audio-bridge-installer-1.0.1-1-any.pkg.tar.zst** da release.
 2. Na pasta onde baixou o arquivo, execute:
 
    ```sh
-   sudo pacman -U ./open-audio-bridge-installer-1.0.0-1-any.pkg.tar.zst
+   sudo pacman -U ./open-audio-bridge-installer-1.0.1-1-any.pkg.tar.zst
    ```
 
 3. Abra **Instalar ou atualizar Open Audio Bridge** no menu e clique em **Instalar e ativar**.
@@ -63,11 +63,11 @@ Dependências: Python 3, PyQt5, gcc e cabeçalhos de desenvolvimento da libc, Pi
 
 A partir da versão 0.5, as atualizações automáticas ficam ativadas. O programa consulta a **última release estável** de `Nolfad/open-audio-bridge` a cada seis horas; um serviço da sua conta verifica pendências a cada quinze minutos. Não é necessário deixar a janela aberta. Computador desligado ou sessão encerrada não executam atualizações.
 
-Quando há uma versão nova, a instalação automática aguarda uma pausa na reprodução e na captura de áudio, inclusive chamadas com o microfone ativo. Fluxos ativos silenciados também adiam a instalação. A aba **Atualizações** permite desligar a automação, ver o resultado da última busca ou usar **Buscar e atualizar agora**, que pode interromper o áudio por alguns instantes. Versões de desenvolvimento, prereleases e commits sem release não são instalados. Quem usa 0.4 ou anterior precisa instalar 0.5 uma vez para receber essa função.
+Quando há uma versão nova, a instalação automática aguarda uma pausa na reprodução e na captura de áudio, inclusive chamadas com o microfone ativo. Fluxos ativos silenciados também adiam a instalação. A partir da versão 1.0.1, a aba **Atualizações** separa **Instalar atualizações automaticamente** de **Avisar quando houver uma nova versão**. Você pode deixar apenas os avisos ativos e escolher quando usar **Buscar e atualizar agora**, que pode interromper o áudio por alguns instantes. A mensagem na bandeja abre a aba Atualizações; o programa evita repetir a notificação da mesma versão. Versões de desenvolvimento, prereleases e commits sem release não são instalados. Quem usa 0.4 ou anterior precisa instalar 0.5 uma vez para receber essa função.
 
 Os pacotes vêm de URLs HTTPS fixas do repositório, têm tamanho limitado e passam pela conferência SHA256 e validação de caminhos/versão antes de executar o instalador. O checksum confere integridade; não é uma assinatura independente do GitHub. O instalador mantém cópias de segurança e restauração em caso de falha. Presets, ganho, volume, preferência de atualização e estado ativado/desativado são preservados. A interface 0.5 ou posterior recarrega sozinha ao concluir uma atualização, mantendo o ícone na bandeja.
 
-Atualizações de uma instalação nativa já preparada mantêm os perfis de áudio e não reiniciam desnecessariamente o PipeWire ou o WirePlumber. Se um dispositivo novo ou uma alteração de perfil exigir o reinício do gerenciador, o programa tenta restaurar as saídas, entradas e rotas dos fluxos que continuam conectados. Aplicativos que se desconectarem completamente podem precisar ser reabertos, sem reiniciar o computador.
+Atualizações de uma instalação nativa já preparada mantêm os perfis de áudio e não reiniciam desnecessariamente o PipeWire ou o WirePlumber. O aplicativo lembra o nível, balanço e estado de mudo das saídas processadas, por dispositivo e porta, para restaurá-los na próxima inicialização do computador; não reaplica valores antigos a cada ajuste ou reinício do próprio aplicativo. Se um dispositivo novo ou uma alteração de perfil exigir o reinício do gerenciador, o programa tenta restaurar as saídas, entradas e rotas dos fluxos que continuam conectados. Aplicativos que se desconectarem completamente podem precisar ser reabertos, sem reiniciar o computador.
 
 As atualizações da aplicação não usam sudo. As dependências do sistema continuam sob responsabilidade do gerenciador de pacotes. Se uma versão futura exigir dependências indisponíveis, a atualização deve falhar sem substituir a instalação funcional; consulte a mensagem na aba Atualizações.
 

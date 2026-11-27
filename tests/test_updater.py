@@ -21,6 +21,19 @@ class UpdaterTests(unittest.TestCase):
    root=updater.extract_release(package,Path(folder)/'out','0.6.0')
    self.assertEqual(root.name,'open-audio-bridge-0.6.0')
    self.assertTrue((root/'native.py').is_file())
+ def test_new_release_requires_native_volume_persistence_module(self):
+  with tempfile.TemporaryDirectory() as folder:
+   version='1.0.1';package=Path(folder)/'new.zip';package.write_bytes(self.archive(version))
+   with self.assertRaisesRegex(ValueError,'native_volume.py'):updater.extract_release(package,Path(folder)/'missing',version)
+   package.write_bytes(self.archive(version,extras={'open-audio-bridge-'+version+'/native_volume.py':'# fixture'}))
+   self.assertTrue((updater.extract_release(package,Path(folder)/'complete',version)/'native_volume.py').is_file())
+ def test_notification_fallback_only_when_tray_cannot_deliver(self):
+  with mock.patch.object(updater,'notify_running_gui',return_value=True) as tray,mock.patch.object(updater.b,'run') as run:
+   self.assertTrue(updater.send_notification('1.0.1',False));tray.assert_called_once_with('1.0.1',False);run.assert_not_called()
+  with mock.patch.object(updater,'notify_running_gui',return_value=False),mock.patch.object(updater.b,'run',side_effect=[updater.b.BridgeError('no notify-send'),mock.Mock(returncode=0)]) as run:
+   self.assertTrue(updater.send_notification('1.0.1',False));self.assertEqual([call.args[0][0] for call in run.call_args_list],['notify-send','gdbus'])
+  with mock.patch.object(updater,'notify_running_gui',return_value=False),mock.patch.object(updater.b,'run',return_value=mock.Mock(returncode=1)):
+   self.assertFalse(updater.send_notification('1.0.1',False))
  def test_traversal_wrong_root_and_embedded_version_rejected(self):
   for extra in ['../escape','open-audio-bridge-0.6.0/../../escape','wrong/bridge.py','/absolute','open-audio-bridge-0.6.0/dir\\evil']:
    with self.subTest(extra=extra),tempfile.TemporaryDirectory() as folder:
@@ -86,7 +99,7 @@ class UpdateFlowTests(unittest.TestCase):
   (self.state/'native-baseline.json').write_text('{}');(self.state/'settings.json').write_text('{"routing":"native","enabled":false}')
   for obj,name,value in [(updater.b,'APP',self.app),(updater.b,'STATE',self.state),(updater.b,'SETTINGS',self.state/'settings.json'),(updater,'PREFS',self.state/'updates.json'),(updater,'STATUS',self.state/'status.json'),(updater,'LOCK',self.state/'update.lock')]:
    patch=mock.patch.object(obj,name,value);patch.start();self.addCleanup(patch.stop)
-  updater.b.save(updater.PREFS,{'automatic':True})
+  updater.b.save(updater.PREFS,{'automatic':True,'notifications':False})
   self.release={'tag_name':'v0.6.0','draft':False,'prerelease':False,'assets':[{'name':'open-audio-bridge-0.6.0.zip'},{'name':'SHA256SUMS'}]}
   self.blob=UpdaterTests().archive();self.calls=[]
  def fetch(self,url,limit=None):
@@ -95,8 +108,45 @@ class UpdateFlowTests(unittest.TestCase):
   if url.endswith('SHA256SUMS'):return (hashlib.sha256(self.blob).hexdigest()+'  open-audio-bridge-0.6.0.zip\n').encode()
   return self.blob
  def test_opt_out_does_not_connect(self):
-  updater.b.save(updater.PREFS,{'automatic':False})
+  updater.b.save(updater.PREFS,{'automatic':False,'notifications':False})
   with mock.patch.object(updater,'download',side_effect=AssertionError('must not connect')):updater.check_apply()
+ def test_notifications_default_on_and_discovery_without_auto_install(self):
+  updater.b.save(updater.PREFS,{'automatic':False})
+  self.assertTrue(updater.notifications())
+  with mock.patch.object(updater,'download',side_effect=self.fetch),mock.patch.object(updater,'send_notification',return_value=True) as notify,mock.patch.object(updater,'playback_busy',side_effect=AssertionError('must not query or stop audio')),mock.patch.object(updater,'apply_release',side_effect=AssertionError('must not install')):
+   first=updater.check_apply();second=updater.check_apply()
+  self.assertEqual(first['state'],'available');self.assertEqual(second['available_version'],'0.6.0')
+  self.assertEqual(self.calls,[updater.API]);notify.assert_called_once_with('0.6.0',False)
+  self.assertEqual(updater.status()['notified_version'],'0.6.0')
+  self.assertEqual(updater.file_version(self.installed),'0.5.0')
+ def test_new_release_notifies_once_and_failed_delivery_retries(self):
+  updater.b.save(updater.PREFS,{'automatic':False,'notifications':True})
+  with mock.patch.object(updater,'download',side_effect=self.fetch),mock.patch.object(updater,'send_notification',side_effect=[False,True,True]) as notify:
+   updater.check_apply();self.assertNotEqual(updater.status().get('notified_version'),'0.6.0')
+   updater.check_apply();self.assertEqual(updater.status()['notified_version'],'0.6.0')
+   updater.check_apply()
+   self.release.update(tag_name='v0.7.0',assets=[{'name':'open-audio-bridge-0.7.0.zip'},{'name':'SHA256SUMS'}]);updater.record(last_checked=0)
+   updater.check_apply();updater.check_apply()
+  self.assertEqual(notify.call_args_list,[mock.call('0.6.0',False),mock.call('0.6.0',False),mock.call('0.7.0',False)])
+ def test_automatic_install_still_works_when_alerts_enabled_or_disabled(self):
+  updater.b.save(updater.PREFS,{'automatic':True,'notifications':True})
+  def apply(version,manual):
+   self.installed.write_text("VERSION='0.6.0'\n");return True
+  with mock.patch.object(updater,'download',side_effect=self.fetch),mock.patch.object(updater,'send_notification',return_value=True) as notify,mock.patch.object(updater,'playback_busy',return_value=False),mock.patch.object(updater,'apply_release',side_effect=apply) as install:
+   result=updater.check_apply()
+  self.assertEqual(result['state'],'updated');notify.assert_called_once_with('0.6.0',True);install.assert_called_once_with('0.6.0',manual=False)
+ def test_notification_failure_never_blocks_automatic_install(self):
+  updater.b.save(updater.PREFS,{'automatic':True,'notifications':True})
+  with mock.patch.object(updater,'download',side_effect=self.fetch),mock.patch.object(updater,'send_notification',side_effect=RuntimeError('desktop unavailable')),mock.patch.object(updater,'playback_busy',return_value=False),mock.patch.object(updater,'apply_release',return_value=True) as install:
+   self.assertEqual(updater.check_apply()['state'],'updated')
+  install.assert_called_once()
+ def test_preferences_keep_independent_schedule_and_choices(self):
+  timer=self.root/'updates.timer';timer.touch()
+  updater.b.save(updater.PREFS,{'automatic':True,'notifications':True})
+  with mock.patch.object(updater,'TIMER',timer),mock.patch.object(updater.b,'run') as run:
+   updater.set_auto(False);self.assertTrue(updater.notifications());self.assertIn('enable',run.call_args.args[0]);run.reset_mock()
+   updater.set_notifications(False);self.assertFalse(updater.automatic());self.assertFalse(updater.notifications());self.assertIn('disable',run.call_args.args[0]);run.reset_mock()
+   updater.set_notifications(True);self.assertFalse(updater.automatic());self.assertIn('enable',run.call_args.args[0])
  def test_busy_playback_defers_before_download(self):
   with mock.patch.object(updater,'download',side_effect=self.fetch),mock.patch.object(updater,'playback_busy',return_value=True),mock.patch.object(updater,'apply_release',side_effect=AssertionError('must not install')):
    result=updater.check_apply()

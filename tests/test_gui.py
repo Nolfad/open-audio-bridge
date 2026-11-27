@@ -14,7 +14,7 @@ class GuiTests(unittest.TestCase):
   tmp=tempfile.TemporaryDirectory();self.addCleanup(tmp.cleanup);root=Path(tmp.name)
   status=dict(active=True,enabled=True,connected=True,volume=37,mute=False,curve='boost',target='default',resolved_target='alsa_output.speakers',resolved_description='Alto-falantes',routing='native',devices=[dict(name='alsa_output.speakers',description='Alto-falantes')])
   status.update(changes);state=root/'state.json';state.write_text(json.dumps(status))
-  (root/'bridge.py').write_text('''import sys,json\nfrom pathlib import Path\np=Path(__file__).with_name('state.json')\ns=json.loads(p.read_text())\nif sys.argv[1]=='status':print(json.dumps(s))\nelif sys.argv[1]=='set-device':\n s['target']=sys.argv[2];p.write_text(json.dumps(s))\nelif sys.argv[1]=='volume':\n s['volume']=int(sys.argv[2]);p.write_text(json.dumps(s))\nelif sys.argv[1]=='set-sound':\n s['sound']=json.loads(sys.argv[2]);p.write_text(json.dumps(s))\nelif sys.argv[1]=='set-startup':\n s['autostart']=sys.argv[2]=='1';p.write_text(json.dumps(s))\nelif sys.argv[1]=='update-auto':\n s.setdefault('updates',{})['automatic']=sys.argv[2]=='1';p.write_text(json.dumps(s))\nelif sys.argv[1]=='update':\n s['manual_update']=True;s.setdefault('updates',{}).update(message='Atualização aplicada.',state='updated',last_checked=1700000000);p.write_text(json.dumps(s))\nelse:raise SystemExit(2)\n''')
+  (root/'bridge.py').write_text('''import sys,json\nfrom pathlib import Path\np=Path(__file__).with_name('state.json')\ns=json.loads(p.read_text())\nif sys.argv[1]=='status':print(json.dumps(s))\nelif sys.argv[1]=='set-device':\n s['target']=sys.argv[2];p.write_text(json.dumps(s))\nelif sys.argv[1]=='volume':\n s['volume']=int(sys.argv[2]);p.write_text(json.dumps(s))\nelif sys.argv[1]=='set-sound':\n s['sound']=json.loads(sys.argv[2]);p.write_text(json.dumps(s))\nelif sys.argv[1]=='set-startup':\n s['autostart']=sys.argv[2]=='1';p.write_text(json.dumps(s))\nelif sys.argv[1]=='update-auto':\n s.setdefault('updates',{})['automatic']=sys.argv[2]=='1';p.write_text(json.dumps(s))\nelif sys.argv[1]=='update-notify':\n s.setdefault('updates',{})['notifications']=sys.argv[2]=='1';p.write_text(json.dumps(s))\nelif sys.argv[1]=='update':\n s['manual_update']=True;s.setdefault('updates',{}).update(message='Atualização aplicada.',state='updated',last_checked=1700000000);p.write_text(json.dumps(s))\nelse:raise SystemExit(2)\n''')
   script=root/'bridge.py'
   script.write_text(script.read_text().replace('import sys,json\n','import sys,json,time\n').replace("if sys.argv[1]=='status':print(json.dumps(s))","if sys.argv[1]=='status':time.sleep(s.get('status_delay',0));print(json.dumps(s))").replace("elif sys.argv[1]=='set-sound':\n", "elif sys.argv[1]=='set-sound':\n with p.with_name('sound_calls.jsonl').open('a') as log:log.write(sys.argv[2]+'\\n')\n time.sleep(s.get('sound_delay',0))\n s=json.loads(p.read_text())\n"))
   patch=mock.patch.object(gui,'ROOT',root);patch.start();self.addCleanup(patch.stop)
@@ -232,6 +232,21 @@ class GuiTests(unittest.TestCase):
   self.assertNotIn('Nunca',window.update_checked.text())
   self.assertIn('Ativo',window.status_label.text())
 
+ def test_update_notification_opens_updates_without_installing(self):
+  window,state=self.native_window(updates=dict(automatic=False,notifications=True,available_version='99.1.0',state='available'))
+  self.assertTrue(window.update_notify.isChecked())
+  window.tabs.setCurrentIndex(0);window.hide()
+  with mock.patch.object(W.QSystemTrayIcon,'isSystemTrayAvailable',return_value=True),mock.patch.object(W.QSystemTrayIcon,'supportsMessages',return_value=True),mock.patch.object(window.tray,'showMessage') as show:
+   self.assertTrue(window.show_update_notification('99.1.0',False));show.assert_called_once()
+  self.assertIn('99.1.0',show.call_args.args[1]);self.assertFalse(window.isVisible())
+  window.tray.messageClicked.emit();self.assertIs(window.tabs.currentWidget(),window.updates_page);self.assertTrue(window.isVisible())
+  self.assertNotIn('manual_update',json.loads(state.read_text()))
+  window.update_notify.setChecked(False);wait(.25);self.assertFalse(json.loads(state.read_text())['updates']['notifications'])
+  self.assertFalse(json.loads(state.read_text())['updates']['automatic'])
+ def test_notification_not_claimed_when_tray_unavailable(self):
+  window,_=self.native_window()
+  with mock.patch.object(W.QSystemTrayIcon,'isSystemTrayAvailable',return_value=False),mock.patch.object(window.tray,'showMessage') as show:
+   self.assertFalse(window.show_update_notification('99.1.0',False));show.assert_not_called()
  def test_update_error_preserves_audio_status_and_shows_version(self):
   window,_=self.native_window(version=gui.VERSION,installed=True,updates=dict(automatic=False,last_checked=0,available_version='99.1.0',message='Tente novamente.',error='Sem conexão',state='error'))
   self.assertFalse(window.update_auto.isChecked())

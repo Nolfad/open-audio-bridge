@@ -1,3 +1,9 @@
+# 1.0.1 — 27/11/2026
+
+- Corrige a restauração do volume de saída ao ligar ou reiniciar o computador. A integração nativa aguarda a estabilização da saída e guarda o último nível, balanço e mudo por dispositivo e porta; ajustes feitos durante a sessão continuam sob controle do sistema.
+- Notifica sobre releases estáveis disponíveis. Os avisos podem permanecer ativos mesmo com a instalação automática desligada, e cada versão é anunciada uma vez. A aba Atualizações e o menu da bandeja permitem abrir o atualizador.
+- Sem mudanças no processamento sonoro, nos presets ou na curva de volume.
+
 # 1.0.0 — 25/11/2026
 
 **Primeira versão estável do Open Audio Bridge.**

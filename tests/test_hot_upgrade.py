@@ -100,6 +100,29 @@ class HotUpgradeTests(unittest.TestCase):
   self.assertTrue(self.running);self.assertTrue(native.settings()['enabled'])
   self.assertEqual((self.app/'bridge.py').read_text(),"VERSION='0.6.0'\n")
 
+ def test_managed_upgrade_seeds_live_levels_and_keeps_disconnected_device_history(self):
+  path=self.state/'native-volume.json'
+  previous=native.native_volume.LevelStore(path,'previous-boot')
+  previous.observe(self.sink,{'volume':[65536,65536],'mute':False})
+  disconnected={'name':'bluez_output.unplugged','active_port':'headset-output'}
+  previous.observe(disconnected,{'volume':[20000,10000],'mute':False})
+  with mock.patch.object(native.native_volume,'boot_id',return_value='current-boot'):
+   native.install(self.source,preserve_enabled=True)
+  saved=native.native_volume.LevelStore(path,'current-boot')
+  self.assertEqual(saved.read_level(self.sink),self.original_levels)
+  self.assertIsNone(saved.restore_for(self.sink))
+  self.assertEqual(saved.restore_for(disconnected),{'volume':[20000,10000],'mute':False})
+  self.assert_no_audio_server_restart();self.assert_preserved()
+
+ def test_failed_upgrade_restores_prior_volume_history(self):
+  path=self.state/'native-volume.json'
+  native.native_volume.LevelStore(path,'previous-boot').observe(self.sink,{'volume':[40000,20000],'mute':False})
+  original=path.read_bytes();self.fail_start=True
+  with mock.patch.object(native.native_volume,'boot_id',return_value='current-boot'):
+   with self.assertRaisesRegex(native.b.BridgeError,'DSP start failed'):native.install(self.source,preserve_enabled=True)
+  self.assertEqual(path.read_bytes(),original)
+  self.assert_no_audio_server_restart();self.assert_preserved()
+
  def test_disabled_native_upgrade_keeps_enabled_and_startup_preferences(self):
   self.running=False;self.before['enabled']=False;native.b.save(native.b.SETTINGS,self.before)
   native.install(self.source,preserve_enabled=True)

@@ -29,10 +29,11 @@ def file_version(path):
 
 def installed():return (b.APP/'bridge.py').is_file() and (b.STATE/'native-baseline.json').is_file() and b.read(b.SETTINGS,{}).get('routing')=='native'
 def automatic():return b.read(PREFS,{}).get('automatic',False) is True
+def notifications():return b.read(PREFS,{}).get('notifications',True) is True
 
 def status():
  result={'automatic':automatic(),'last_checked':0,'available_version':None,'message':'Ainda não houve verificação.','error':'','state':'idle'}
- result.update(b.read(STATUS,{}));result['automatic']=automatic();return result
+ result.update(b.read(STATUS,{}));result['automatic']=automatic();result['notifications']=notifications();return result
 
 def record(**changes):
  result=b.read(STATUS,{});result.update(changes);b.save(STATUS,result);return result
@@ -92,7 +93,9 @@ def extract_release(package,destination,version):
    if len(data)!=info.file_size:raise ValueError('Tamanho inválido no pacote.')
    path.write_bytes(data);path.chmod(0o755 if path.suffix=='.py' or path.name=='Instalar.desktop' else 0o644)
  root=destination/root_name
- for name in ['bridge.py','native.py','updater.py','gui.py','sound.py','oab.py','install.py']:
+ required=['bridge.py','native.py','updater.py','gui.py','sound.py','oab.py','install.py']
+ if version_tuple(version)>=(1,0,1):required.append('native_volume.py')
+ for name in required:
   if not (root/name).is_file():raise ValueError('Pacote incompleto: '+name)
  if file_version(root/'bridge.py')!=version:raise ValueError('Versão interna diferente da release.')
  return root
@@ -129,13 +132,57 @@ def apply_release(version,manual=False):
   if current<wanted:raise b.BridgeError('A versão instalada não corresponde à atualização.')
   return current==wanted
 
+def notification_message(version,auto):
+ version_tuple(version)
+ return ('Atualização disponível — Open Audio Bridge',
+  ('Versão '+version+' disponível. A instalação automática aguarda uma pausa no áudio. Abra Atualizações para acompanhar ou instalar agora.' if auto else 'Versão '+version+' disponível. Abra o Open Audio Bridge, na aba Atualizações, para instalar quando quiser.'))
+
+def notify_running_gui(version,auto):
+ # Use the existing user-scoped singleton; an acknowledgement means the
+ # running interface could actually display a clickable tray notification.
+ try:
+  from PyQt5 import QtCore,QtNetwork
+  app=QtCore.QCoreApplication.instance() or QtCore.QCoreApplication(['oab-update'])
+  socket=QtNetwork.QLocalSocket()
+  socket.connectToServer('open-audio-bridge-'+str(os.getuid()))
+  try:
+   if not socket.waitForConnected(250):return False
+   payload=('notify:'+version+':'+('1' if auto else '0')+'\n').encode()
+   if socket.write(payload)!=len(payload):return False
+   socket.flush()
+   if socket.bytesToWrite() and not socket.waitForBytesWritten(250):return False
+   return bool((socket.bytesAvailable() or socket.waitForReadyRead(1000)) and bytes(socket.readAll()).strip()==b'ok')
+  finally:socket.abort()
+ except (ImportError,OSError,RuntimeError):return False
+
+def send_notification(version,auto):
+ title,body=notification_message(version,auto)
+ if notify_running_gui(version,auto):return True
+ # The tray may be closed or disabled. The desktop can still notify using
+ # the standard freedesktop service (no GUI or extra required dependency).
+ for command in (
+  ['notify-send','--app-name=Open Audio Bridge','--icon=software-update-available','--hint=string:desktop-entry:open-audio-bridge',title,body],
+  ['gdbus','call','--session','--dest','org.freedesktop.Notifications','--object-path','/org/freedesktop/Notifications','--method','org.freedesktop.Notifications.Notify','Open Audio Bridge','0','software-update-available',title,body,'[]','{}','10000']):
+  try:
+   if b.run(command,check=False,timeout=3).returncode==0:return True
+  except (b.BridgeError,OSError):pass
+ return False
+
+def notify_once(version):
+ if not notifications() or status().get('notified_version')==version:return
+ try:
+  if send_notification(version,automatic()):record(notified_version=version)
+ except Exception:
+  # A missing notification daemon or session must never interrupt updates.
+  pass
+
 def check_apply(manual=False):
  b.STATE.mkdir(parents=True,exist_ok=True)
  with LOCK.open('a') as lock:
   try:fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
   except BlockingIOError:return {'message':'Uma atualização já está em andamento.'}
   if not installed():return {'message':'Instale o programa antes de atualizar.'}
-  if not manual and not automatic():return {'message':'Atualização automática desativada.'}
+  if not manual and not (automatic() or notifications()):return {'message':'Buscas e atualizações automáticas desativadas.'}
   try:
    prior=status();now=time.time();version=prior.get('available_version');current=file_version(b.APP/'bridge.py')
    if manual or not prior.get('last_checked') or now-prior['last_checked']>=CHECK_INTERVAL:
@@ -144,7 +191,8 @@ def check_apply(manual=False):
     record(last_checked=now,available_version=version)
    if not version or version_tuple(version)<=version_tuple(current):return record(state='idle',available_version=None,error='',message='Você está na versão mais recente disponível.')
    if not manual:
-    if not automatic():return record(state='idle',message='Atualização automática desativada.')
+    notify_once(version)
+    if not automatic():return record(state='available',error='',message='Versão '+version+' disponível. Instale quando quiser na aba Atualizações.')
     if playback_busy():return record(state='deferred',error='',message='Versão '+version+' disponível. Aguardando uma pausa na reprodução e na captura.')
    record(state='updating',error='',message='Baixando e instalando a versão '+version+'…')
    changed=apply_release(version,manual=manual)
@@ -155,15 +203,18 @@ def check_apply(manual=False):
    raise
 
 def sync_schedule():
- if TIMER.exists() and automatic():b.run(['systemctl','--user','enable','--now',UNIT+'.timer'])
+ if TIMER.exists() and (automatic() or notifications()):b.run(['systemctl','--user','enable','--now',UNIT+'.timer'])
  else:b.run(['systemctl','--user','disable','--now',UNIT+'.timer'],check=False)
 
-def set_auto(enabled):
+def set_preference(key,enabled):
  if type(enabled) is not bool:raise ValueError('Preferência inválida.')
  b.STATE.mkdir(parents=True,exist_ok=True)
  with (b.STATE/'native.lock').open('a') as lock:
   fcntl.flock(lock,fcntl.LOCK_EX)
-  b.save(PREFS,{'automatic':enabled});sync_schedule()
+  prefs=b.read(PREFS,{});prefs[key]=enabled;b.save(PREFS,prefs);sync_schedule()
+
+def set_auto(enabled):set_preference('automatic',enabled)
+def set_notifications(enabled):set_preference('notifications',enabled)
 
 def setup():
  base_path=b.STATE/'native-baseline.json';base=b.read(base_path,{})
@@ -172,7 +223,7 @@ def setup():
    if path in [SERVICE,TIMER] and path.exists() and not path.read_text().startswith(MARKER):raise b.BridgeError('Serviço desconhecido preservado: '+str(path))
    base.setdefault('files',{}).update(b.snapshot([path]))
  b.save(base_path,base)
- if not PREFS.exists():b.save(PREFS,{'automatic':True})
+ if not PREFS.exists():b.save(PREFS,{'automatic':True,'notifications':True})
  command=json.dumps(sys.executable)+' '+json.dumps(str(b.APP/'updater.py').replace('%','%%'))+' --scheduled'
  b.atomic(SERVICE,MARKER+'\n[Unit]\nDescription=Open Audio Bridge stable release updater\n\n[Service]\nType=oneshot\nExecStart='+command+'\nTimeoutStartSec=0\n')
  b.atomic(TIMER,MARKER+'\n[Unit]\nDescription=Open Audio Bridge update checks\n\n[Timer]\nOnActiveSec=5min\nOnUnitInactiveSec=15min\nRandomizedDelaySec=60\nUnit='+UNIT+'.service\n\n[Install]\nWantedBy=timers.target\n')

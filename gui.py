@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Small KDE-friendly control panel. Audio continues when its window closes."""
 import json,sys
+import updater
 import sound
 import meter_ui
 from pathlib import Path
@@ -60,7 +61,7 @@ class Window(W.QMainWindow):
   self.mute.toggled.connect(lambda v:self.execute('mute','1' if v else '0'))
   self.toggle.clicked.connect(lambda:self.execute('disable' if self.last.get('enabled') else 'enable'))
   self.refresh_button.clicked.connect(self.refresh);self.remove.clicked.connect(self.uninstall)
-  self.tray=W.QSystemTrayIcon(self.windowIcon(),self);menu=W.QMenu();menu.addAction('Abrir controle',self.show_window);menu.addAction('Sair da interface',self.quit_ui);self.tray.setContextMenu(menu);self.tray.activated.connect(lambda reason:self.show_window() if reason==W.QSystemTrayIcon.Trigger else None);self.tray.setToolTip('Open Audio Bridge')
+  self.tray=W.QSystemTrayIcon(self.windowIcon(),self);menu=W.QMenu();menu.addAction('Abrir controle',self.show_window);menu.addAction('Atualizações',self.show_updates);menu.addAction('Sair da interface',self.quit_ui);self.tray.setContextMenu(menu);self.tray.activated.connect(lambda reason:self.show_window() if reason==W.QSystemTrayIcon.Trigger else None);self.tray.setToolTip('Open Audio Bridge');self.tray.messageClicked.connect(self.show_updates)
   if self.use_tray:self.tray.show()
   self.meter=meter_ui.SpectrumController(ROOT,self.eq_sliders,self)
   self.tabs.currentChanged.connect(self.sync_meter)
@@ -87,24 +88,34 @@ class Window(W.QMainWindow):
   self.tabs.addTab(self.settings_page,'Configurações')
   self.startup.toggled.connect(lambda enabled:self.execute('set-startup','1' if enabled else '0'))
  def build_updates(self):
-  page=W.QWidget();layout=W.QVBoxLayout(page);layout.setSpacing(16)
+  page=W.QWidget();self.updates_page=page;layout=W.QVBoxLayout(page);layout.setSpacing(16)
   self.update_version=W.QLabel('Interface em execução: '+VERSION);layout.addWidget(self.update_version)
-  self.update_auto=W.QCheckBox('Buscar e instalar atualizações automaticamente');self.update_auto.setChecked(True);layout.addWidget(self.update_auto)
-  note=W.QLabel('A atualização automática aguarda uma pausa na reprodução e na captura de áudio, inclusive chamadas. Buscar e atualizar agora aplica a versão disponível imediatamente e pode interromper o áudio por alguns instantes. Seus ajustes são preservados.');note.setWordWrap(True);layout.addWidget(note)
+  self.update_auto=W.QCheckBox('Instalar atualizações automaticamente');self.update_auto.setChecked(True);layout.addWidget(self.update_auto)
+  self.update_notify=W.QCheckBox('Avisar quando houver uma nova versão');self.update_notify.setChecked(True);layout.addWidget(self.update_notify)
+  note=W.QLabel('Os avisos procuram novas versões mesmo com a instalação automática desligada. A atualização automática aguarda uma pausa na reprodução e na captura de áudio, inclusive chamadas. Buscar e atualizar agora aplica a versão disponível imediatamente e pode interromper o áudio por alguns instantes. Seus ajustes são preservados.');note.setWordWrap(True);layout.addWidget(note)
   self.update_button=W.QPushButton('Buscar e atualizar agora');layout.addWidget(self.update_button)
   self.update_checked=W.QLabel('Última busca: nunca');layout.addWidget(self.update_checked)
   self.update_status=W.QLabel('Aguardando informações de atualização…');self.update_status.setWordWrap(True);self.update_status.setTextFormat(QtCore.Qt.PlainText);layout.addWidget(self.update_status)
   layout.addStretch();self.tabs.addTab(page,'Atualizações')
   self.update_auto.toggled.connect(lambda enabled:self.execute('update-auto','1' if enabled else '0'))
+  self.update_notify.toggled.connect(lambda enabled:self.execute('update-notify','1' if enabled else '0'))
   self.update_button.clicked.connect(lambda:self.execute('update'))
+ def show_updates(self):
+  self.tabs.setCurrentWidget(self.updates_page);self.show_window();self.refresh()
+ def show_update_notification(self,version,auto):
+  if not self.use_tray or not W.QSystemTrayIcon.isSystemTrayAvailable() or not W.QSystemTrayIcon.supportsMessages():return False
+  try:title,body=updater.notification_message(version,auto)
+  except ValueError:return False
+  self.tray.showMessage(title,body,W.QSystemTrayIcon.Information,15000);return True
  def sync_updates(self,data):
   updates=data.get('updates') or {};installed=data.get('version')
   self.update_version.setText('Interface em execução: '+VERSION+'\nVersão instalada: '+(str(installed) if data.get('installed') and installed else 'não informada'))
   self.update_auto.blockSignals(True);self.update_auto.setChecked(updates.get('automatic',True));self.update_auto.blockSignals(False)
+  self.update_notify.blockSignals(True);self.update_notify.setChecked(updates.get('notifications',True));self.update_notify.blockSignals(False)
   checked=updates.get('last_checked',0)
   stamp=QtCore.QDateTime.fromSecsSinceEpoch(int(checked)).toString('dd/MM/yyyy HH:mm:ss') if isinstance(checked,(int,float)) and checked>0 else 'nunca'
   self.update_checked.setText('Última busca: '+stamp)
-  states={'idle':'Pronto para buscar atualizações.','checking':'Buscando atualizações…','deferred':'Atualização aguardando reprodução e captura em pausa.','updating':'Instalando atualização…','updated':'Atualização aplicada.','error':'Não foi possível atualizar.'}
+  states={'idle':'Pronto para buscar atualizações.','checking':'Buscando atualizações…','available':'Nova versão disponível.','deferred':'Atualização aguardando reprodução e captura em pausa.','updating':'Instalando atualização…','updated':'Atualização aplicada.','error':'Não foi possível atualizar.'}
   lines=[updates.get('message') or states.get(updates.get('state'),'Pronto para buscar atualizações.')]
   if updates.get('available_version'):lines.append('Versão disponível: '+str(updates['available_version']))
   if updates.get('error'):lines.append('Falha na atualização: '+str(updates['error']))
@@ -205,7 +216,7 @@ class Window(W.QMainWindow):
   W.QApplication.instance().quit()
  def show_window(self):self.showNormal();self.raise_();self.activateWindow()
  def controls(self,enabled):
-  for x in [self.device,self.curve,self.slider,self.mute,self.toggle,self.remove,self.update_auto,self.update_button,self.startup]:x.setEnabled(enabled)
+  for x in [self.device,self.curve,self.slider,self.mute,self.toggle,self.remove,self.update_auto,self.update_notify,self.update_button,self.startup]:x.setEnabled(enabled)
   editable=enabled or (self.busy and self.sound_editable())
   for x in [self.drive,self.eq_enabled,self.eq_preset,self.music_mode,self.width]:x.setEnabled(editable)
   for slider in self.eq_sliders:slider.setEnabled(editable and self.eq_enabled.isChecked())
@@ -217,7 +228,7 @@ class Window(W.QMainWindow):
   self.busy=True;self.pending_command=command;self.controls(False)
   if command=='set-sound':self.sound_revision+=1
   if command=='update':self.update_status.setText('Buscando e aplicando atualização…')
-  elif command!='update-auto':self.status_label.setText('Aplicando…')
+  elif command not in ('update-auto','update-notify'):self.status_label.setText('Aplicando…')
   self.action.start(sys.executable,[str(ROOT/'bridge.py'),command]+([str(value)] if value is not None else []))
  def process_error(self,_):
   if self.action.state()==QtCore.QProcess.NotRunning and self.busy:
@@ -293,8 +304,18 @@ def main():
  if '--screenshot' not in sys.argv:window.restart_requested.connect(lambda visible:restart_interface(window,app,server,server_name,visible))
  if server:
   def incoming():
-   client=server.nextPendingConnection()
-   client.readyRead.connect(lambda:(client.readAll(),window.show_window(),client.disconnectFromServer()))
+   client=server.nextPendingConnection();buffer=bytearray()
+   def handle():
+    buffer.extend(bytes(client.readAll()))
+    if buffer==b'show':window.show_window();client.disconnectFromServer();return
+    if b'\n' not in buffer and len(buffer)<100:return
+    try:
+     prefix,version,auto=bytes(buffer).decode('ascii').strip().split(':')
+     visible=prefix=='notify' and auto in ('0','1') and window.show_update_notification(version,auto=='1')
+    except (ValueError,UnicodeError):visible=False
+    client.write(b'ok\n' if visible else b'no\n');client.flush();client.disconnectFromServer()
+   client.readyRead.connect(handle)
+   if client.bytesAvailable():handle()
   server.newConnection.connect(incoming)
  if '--screenshot' in sys.argv:
   path=sys.argv[sys.argv.index('--screenshot')+1];window.show();QtCore.QTimer.singleShot(900,lambda:(window.grab().save(path),app.quit()))

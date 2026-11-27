@@ -6,6 +6,7 @@ import bridge as b
 import sound
 import updater
 import audio_routes
+import native_volume
 
 RULE=b.HOME_DIR/'.config/wireplumber/wireplumber.conf.d/93-open-audio-bridge-native.conf'
 DROPIN=b.HOME_DIR/'.config/systemd/user/pipewire.service.d/91-open-audio-bridge-native.conf'
@@ -71,6 +72,32 @@ def graph(curve,levels,mute,sound_config=None):
 def set_props(node,value):b.run(['pw-cli','set-param',str(node['id']),'Props',json.dumps(value)])
 def level_snapshot():
  return {s['name']:{'volume':raw_levels(s),'mute':s['mute']} for s in candidates(b.sinks())}
+def level_store():return native_volume.LevelStore(b.STATE/'native-volume.json',native_volume.boot_id())
+def seed_levels(config):
+ # Called after installation or an explicit enable; preserve the live values
+ # rather than replaying an older boot's snapshot during a manual operation.
+ store=level_store()
+ try:
+  items=candidates(b.sinks());wanted=selected_names(config,items)
+  for sink in items:
+   if sink['name'] in wanted:store.observe(sink)
+ except (b.BridgeError,OSError,ValueError):pass
+def observe_levels(store,items,owned):
+ # Commands such as EQ/profile changes temporarily mute the graph. Never save
+ # that internal transition as the user's last listening level.
+ try:
+  with (b.STATE/'native.lock').open('a') as lock:
+   try:b.fcntl.flock(lock,b.fcntl.LOCK_SH|b.fcntl.LOCK_NB)
+   except BlockingIOError:return
+   for sink in items:
+    record=owned.get(sink['name'])
+    if record is not None and record.get('device_key',native_volume.device_key(sink))==native_volume.device_key(sink):store.observe(sink)
+ except (OSError,ValueError):pass
+def remember_restored(store,sink,prior):
+ try:
+  confirmed=b.sink_by_name(sink['name'])
+  if confirmed and native_volume.device_key(confirmed)==native_volume.device_key(sink):store.observe(confirmed,prior)
+ except (b.BridgeError,OSError,ValueError):pass
 def restore_levels(levels):
  for name,level in levels.items():
   if b.sink_by_name(name):
@@ -93,14 +120,14 @@ def status():
   return {'installed':config.get('routing')=='native','routing':'native','version':b.VERSION,'sound':sound.normalize(config.get('sound')),'updates':updater.status(),'autostart':config.get('autostart',True),'curve':config.get('curve','boost'),'enabled':config.get('enabled',False),'target':config.get('target','default'),'resolved_target':target,'resolved_description':b.device_description(sink) if sink else target,'default':default,'connected':sink is not None,'playing':b.playback_present(sink),'active':bool(config.get('enabled') and target in ready.get('attached',[])),'volume':round(b.percent_of(sink),1) if sink else 0,'mute':sink['mute'] if sink else False,'devices':[{'name':s['name'],'description':b.device_description(s)} for s in items],'error':ready.get('error','')}
  except b.BridgeError as e:return {'routing':'native','installed':BASE.exists(),'autostart':settings().get('autostart',True),'enabled':False,'active':False,'devices':[],'error':str(e),'version':b.VERSION}
 
-def attach(node,sink,curve,owned,sound_config=None):
+def attach(node,sink,curve,owned,sound_config=None,prior=None):
  name=sink['name']
  if 'HW_VOLUME_CTRL' in sink.get('flags',[]):raise b.BridgeError('A saída '+b.device_description(sink)+' ainda exige preparação do controle nativo.')
  extra=[key for key,value in params(node).items() if (':' in key and not key.startswith('oab_native_')) or (key.startswith('audioconvert.filter-graph') and key!='audioconvert.filter-graph.disable' and bool(value))]
  if extra:raise b.BridgeError('Existe outro processamento nesta saída; ele foi preservado: '+name)
- prior={'volume':raw_levels(sink),'mute':sink['mute']}
+ prior=prior if prior is not None else {'volume':raw_levels(sink),'mute':sink['mute']}
  # Persist ownership before touching a node, so ExecStopPost can recover failures.
- owned[name]={'id':node['id'],'serial':serial(node),'curve':curve,'sound':sound.normalize(sound_config)};b.save(OWNED,owned)
+ owned[name]={'id':node['id'],'serial':serial(node),'boot':native_volume.boot_id(),'device_key':native_volume.device_key(sink),'curve':curve,'sound':sound.normalize(sound_config)};b.save(OWNED,owned)
  b.run(['pactl','set-sink-mute',name,'1'])
  try:
   set_props(node,{'params':[KEY,json.dumps(graph(curve,[(v/65536)**3 for v in prior['volume']],prior['mute'],sound_config))]})
@@ -119,10 +146,13 @@ def detach(node,sink):
 def recover():
  owned=b.read(OWNED,{})
  if not owned:return
- current=nodes();sinks={s['name']:s for s in candidates(b.sinks())}
+ current=nodes();sinks={s['name']:s for s in candidates(b.sinks())};boot=native_volume.boot_id()
  for name,record in list(owned.items()):
   node=current.get(name)
-  if node and serial(node)==record['serial'] and name in sinks:detach(node,sinks[name])
+  # PipeWire serial IDs may repeat after a reboot. A stale ownership record
+  # must not detach a newly-created node or write its temporary startup level.
+  same_boot=bool(boot and record.get('boot')==boot)
+  if node and serial(node)==record['serial'] and name in sinks and (same_boot or owns_node(node)):detach(node,sinks[name])
   owned.pop(name,None);b.save(OWNED,owned)
  READY.unlink(missing_ok=True)
 
@@ -217,7 +247,7 @@ def daemon():
  def stop(*_):
   nonlocal stopping;stopping=True
  signal.signal(signal.SIGTERM,stop);signal.signal(signal.SIGINT,stop)
- recover();owned={};last=None;last_owned=None;prepared=set(settings().get('mixer_cards',{}))
+ recover();owned={};last=None;last_owned=None;prepared=set(settings().get('mixer_cards',{}));levels=level_store();arrivals=native_volume.ArrivalTracker()
  try:
   while not stopping:
    config=settings();items=candidates(b.sinks())
@@ -231,24 +261,53 @@ def daemon():
      except (b.BridgeError,ValueError,OSError) as e:
       b.save(READY,{'ready':True,'pid':os.getpid(),'attached':sorted(owned),'error':str(e)})
    current=nodes();wanted=selected_names(config,items) if config.get('enabled') else set()
-   errors=[]
+   arrivals.retain({(native_volume.device_key(s),serial(current[s['name']])) for s in items if s['name'] in wanted and s['name'] in current})
+   errors=[];pending=False;changed_ports=set()
    for name,record in list(owned.items()):
     node=current.get(name);sink=next((s for s in items if s['name']==name),None)
     if not node or serial(node)!=record['serial']:owned.pop(name,None)
     elif name not in wanted or record['curve']!=config.get('curve','boost') or record.get('sound')!=sound.normalize(config.get('sound')):
      if sink:detach(node,sink)
      owned.pop(name,None)
+    elif sink and record.get('device_key')!=native_volume.device_key(sink):
+     # A card can change its physical port without changing the PipeWire node.
+     # Wait for the new route before saving or restoring its own listening level.
+     if not arrivals.ready(sink,serial(node),time.monotonic()):
+      pending=True;continue
+     prior=levels.restore_for(sink,allow_restore=config.get('autostart',True))
+     if prior is not None:
+      try:
+       b.run(['pactl','set-sink-mute',name,'1']);restore_levels({name:prior})
+       remember_restored(levels,sink,prior)
+      except b.BridgeError as e:
+       try:restore_levels({name:{'volume':raw_levels(sink),'mute':sink['mute']}})
+       except b.BridgeError:pass
+       errors.append(str(e));continue
+     owned[name]=dict(record,device_key=native_volume.device_key(sink));changed_ports.add(name)
+   # Only save levels from already attached live nodes; never from a transient
+   # startup snapshot or the teardown path in recover().
+   observe_levels(levels,[s for s in items if s['name'] not in changed_ports],owned)
    for sink in items:
     name=sink['name'];node=current.get(name)
     if name not in wanted or name in owned or not node:continue
-    try:attach(node,sink,config.get('curve','boost'),owned,config.get('sound'))
+    if not arrivals.ready(sink,serial(node),time.monotonic()):
+     pending=True;continue
+    prior=levels.restore_for(sink,allow_restore=config.get('autostart',True))
+    try:
+     attach(node,sink,config.get('curve','boost'),owned,config.get('sound'),prior=prior)
+     if prior is not None:
+      # Mark this boot only after successful restoration, and keep records for
+      # disconnected devices until they actually arrive.
+      remember_restored(levels,sink,prior)
     except b.BridgeError as e:
      errors.append(str(e))
      # Keep ownership after a partial attachment until removal succeeds.
      if name in owned:
-      detach(node,sink);owned.pop(name,None)
+      fresh=b.sink_by_name(name)
+      if fresh:detach(node,fresh)
+      owned.pop(name,None)
    if owned!=last_owned:b.save(OWNED,owned);last_owned=dict(owned)
-   result={'ready':True,'pid':os.getpid(),'attached':sorted(owned),'error':'\n'.join(errors)}
+   result={'ready':not pending,'pid':os.getpid(),'attached':sorted(owned),'error':'\n'.join(errors)}
    if result!=last:b.save(READY,result);last=result
    time.sleep(.2)
  finally:recover()
@@ -270,6 +329,7 @@ def enable():
  previous=settings();levels=level_snapshot();rule=b.snapshot([RULE])
  try:
   config=dict(previous,enabled=True);b.save(b.SETTINGS,config)
+  if not previous.get('enabled'):seed_levels(config)
   prepare_mixers();READY.unlink(missing_ok=True)
   sync_startup()
   b.run(['systemctl','--user','restart','open-audio-bridge'],timeout=20);wait_ready()
@@ -332,7 +392,7 @@ def uninstall():
  b.run(['systemctl','--user','daemon-reload']);restart_policy(base.get('volumes',{}))
  if base.get('default') and b.sink_by_name(base['default']):b.run(['pactl','set-default-sink',base['default']])
  if b.APP.exists():shutil.rmtree(b.APP)
- b.SETTINGS.unlink(missing_ok=True);OWNED.unlink(missing_ok=True);READY.unlink(missing_ok=True);updater.STATUS.unlink(missing_ok=True)
+ b.SETTINGS.unlink(missing_ok=True);OWNED.unlink(missing_ok=True);READY.unlink(missing_ok=True);updater.STATUS.unlink(missing_ok=True);(b.STATE/'native-volume.json').unlink(missing_ok=True)
  BASE.rename(BASE.with_name('native-uninstalled-'+str(time.time_ns())+'.json'))
  if b.BASELINE.exists():b.BASELINE.rename(b.BASELINE.with_name('legacy-retired-'+str(time.time_ns())+'.json'))
 
@@ -433,6 +493,7 @@ def install(source,preserve_enabled=False,scheduled=False):
    if target in current:
     p=min(50,migration_percent(version,config['curve'],old));current[target]={'volume':[round(p*65536/100*x) for x in before.get('balance',[1,1])],'mute':before.get('mute',False)}
   restore_levels(current)
+  seed_levels(config)
   finish_install(before,running,preserve_enabled)
   updater.setup()
   destination=default if default!=b.SINK else before.get('target',b.default_sink())
@@ -467,11 +528,12 @@ def install(source,preserve_enabled=False,scheduled=False):
  finally:shutil.rmtree(stage,ignore_errors=True)
 
 def main():
- p=argparse.ArgumentParser();p.add_argument('command',choices=['install','install-update','update','update-auto','set-startup','resume','enable','disable','uninstall','status','set-device','set-curve','set-sound','volume','mute','daemon','recover']);p.add_argument('value',nargs='?');a=p.parse_args()
+ p=argparse.ArgumentParser();p.add_argument('command',choices=['install','install-update','update','update-auto','update-notify','set-startup','resume','enable','disable','uninstall','status','set-device','set-curve','set-sound','volume','mute','daemon','recover']);p.add_argument('value',nargs='?');a=p.parse_args()
  try:
   if a.command=='status':print(json.dumps(status(),ensure_ascii=False));return
   if a.command=='update':print(json.dumps(updater.check_apply(manual=True),ensure_ascii=False));return
   if a.command=='update-auto':updater.set_auto(a.value=='1');print('Concluído.');return
+  if a.command=='update-notify':updater.set_notifications(a.value=='1');print('Concluído.');return
   b.STATE.mkdir(parents=True,exist_ok=True)
   with (b.STATE/'native.lock').open('w') as lock:
    if a.command not in ['daemon','recover']:b.fcntl.flock(lock,b.fcntl.LOCK_EX)
